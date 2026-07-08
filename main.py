@@ -808,9 +808,12 @@ if __name__ == "__main__":
     logger.info(f"Starting Uvicorn server on {final_host}:{final_port}...")
     
     # Use string reference to avoid double module import
+    # timeout_graceful_shutdown: 30s max to wait for active connections to close
+    # during shutdown. Prevents systemd stop from hanging on stale connections.
     uvicorn.run(
         "main:app",
         host=final_host,
         port=final_port,
         log_config=UVICORN_LOG_CONFIG,
+        timeout_graceful_shutdown=30,
     )

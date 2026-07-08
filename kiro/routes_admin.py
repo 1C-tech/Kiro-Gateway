@@ -594,10 +594,12 @@ async def refresh_accounts_credits(request: Request):
 
             if auth_mgr:
                 # Fast path: use existing auth manager
+                # Use api_host property (q.amazonaws.com) NOT q_host property (runtime.kiro.dev)
+                # getUsageLimits only works on the AWS API host, not the runtime host
                 token = await auth_mgr.get_access_token()
-                q_host = getattr(auth_mgr, 'q_host', 'https://q.us-east-1.amazonaws.com')
+                q_host = getattr(auth_mgr, 'api_host', 'https://q.us-east-1.amazonaws.com')
                 profile_arn = getattr(auth_mgr, 'profile_arn', None) or ""
-                region = getattr(auth_mgr, '_region', 'us-east-1')
+                region = getattr(auth_mgr, 'region', 'us-east-1')
             else:
                 # Slow path: read file, do OIDC refresh ourselves
                 filepath = aid
@@ -744,18 +746,21 @@ async def refresh_account_credit_single(req: Request):
 
     am = req.app.state.account_manager
     filepath = os.path.join(ACCOUNTS_DIR, acct_id + ".json")
+    # Resolve path to match account manager's key format (str(Path.resolve()))
+    resolved_filepath = str(Path(filepath).resolve())
 
     result = {"id": acct_id, "success": False, "error": None, "creditLimit": None, "creditUsed": None}
 
     try:
-        acct = am._accounts.get(filepath) or am._accounts.get(acct_id)
+        acct = am._accounts.get(resolved_filepath) or am._accounts.get(filepath) or am._accounts.get(acct_id)
         auth_mgr = getattr(acct, 'auth_manager', None) if acct else None
 
         if auth_mgr:
             token = await auth_mgr.get_access_token()
-            q_host = getattr(auth_mgr, 'q_host', 'https://q.us-east-1.amazonaws.com')
+            # Use api_host property (q.amazonaws.com) NOT q_host property (runtime.kiro.dev)
+            q_host = getattr(auth_mgr, 'api_host', 'https://q.us-east-1.amazonaws.com')
             profile_arn = getattr(auth_mgr, 'profile_arn', None) or ""
-            region = getattr(auth_mgr, '_region', 'us-east-1')
+            region = getattr(auth_mgr, 'region', 'us-east-1')
         else:
             if not os.path.exists(filepath):
                 result["error"] = "File not found"
