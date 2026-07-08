@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiro Gateway 管理面板</title>
+<style>
+:root {
+  --bg: #0f1117; --card: #1a1d2e; --border: #2a2d3e;
+  --text: #e1e4ed; --muted: #8b8fa3;
+  --green: #22c55e; --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
+  --radius: 10px; --sidebar-w: 200px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
+
+/* Layout */
+.app-layout { display: flex; height: 100vh; }
+
+/* Sidebar */
+.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: margin-left .25s; z-index: 50; }
+.sidebar.collapsed { margin-left: calc(var(--sidebar-w) * -1); }
+.sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.sidebar-header h1 { font-size: 16px; font-weight: 600; }
+.sidebar-header .hamburger { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; display: none; }
+.sidebar-nav { flex: 1; padding: 8px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--muted); transition: all .15s; margin-bottom: 2px; }
+.nav-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.nav-item.active { background: rgba(59,130,246,.12); color: var(--blue); font-weight: 500; }
+.nav-item .icon { font-size: 16px; }
+
+/* Top bar (shown when sidebar is invisible on desktop toggle) */
+.top-bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); min-height: 52px; }
+.top-bar .hamburger-desktop { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; }
+.top-bar .controls-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+/* Content area */
+.content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.page { display: none; padding: 20px; flex: 1; }
+.page.active { display: block; }
+
+/* Dashboard styles */
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.stat-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; }
+.section-header h2 { font-size: 15px; font-weight: 600; }
+.accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.account-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.account-card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.account-card .name { font-size: 13px; font-weight: 600; }
+.account-card .detail { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.account-card .detail span { color: var(--text); }
+.account-card .bar-bg { height: 4px; background: #2a2d3e; border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.account-card .bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.models-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 20px; }
+.models-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.model-tag { padding: 3px 9px; background: rgba(59,130,246,.12); color: var(--blue); border-radius: 12px; font-size: 12px; }
+.last-update { font-size: 12px; color: var(--muted); text-align: center; margin-top: 16px; }
+
+/* Badges */
+.badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.badge.healthy { background: rgba(34,197,94,.15); color: var(--green); }
+.badge.degraded { background: rgba(234,179,8,.15); color: var(--yellow); }
+.badge.cooldown { background: rgba(239,68,68,.15); color: var(--red); }
+.badge.pending { background: rgba(139,143,163,.15); color: var(--muted); }
+.badge.idle { background: rgba(139,143,163,.15); color: var(--muted); }
+.badge.proxy-on { background: rgba(59,130,246,.15); color: var(--blue); }
+.badge.proxy-off { background: rgba(139,143,163,.15); color: var(--muted); }
+
+/* Checkbox */
+.acct-checkbox, #selectAllCheck { accent-color: var(--blue); cursor: pointer; }
+
+/* Buttons */
+.btn { border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-yellow { background: var(--yellow); color: #000; }
+.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Settings page */
+.settings-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.settings-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(42,45,62,.5); }
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 13px; color: var(--muted); min-width: 120px; }
+.settings-value { font-size: 13px; font-family: 'Courier New', monospace; word-break: break-all; flex: 1; margin: 0 12px; }
+.settings-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.key-display { display: flex; align-items: center; gap: 8px; background: #0a0c12; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 13px; flex: 1; }
+.key-display .key-text { flex: 1; word-break: break-all; }
+.proxy-input-row { display: flex; gap: 8px; align-items: center; }
+.proxy-input-row input { flex: 1; padding: 8px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; font-family: 'Courier New', monospace; }
+.proxy-input-row input:focus { border-color: var(--blue); }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.active { display: flex; }
+.modal-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: 480px; max-width: 94vw; max-height: 90vh; overflow-y: auto; }
+.modal-box h3 { font-size: 17px; margin-bottom: 14px; }
+.modal-box label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+.modal-box input, .modal-box select { width: 100%; padding: 8px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; }
+.modal-box input:focus { border-color: var(--blue); }
+.modal-box .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.modal-box .btn-primary { background: var(--blue); color: #fff; }
+.modal-box .btn-cancel { background: #2a2d3e; color: var(--text); }
+.modal-box .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.modal-msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none; }
+.modal-msg.success { display: block; background: rgba(34,197,94,.12); color: var(--green); }
+.modal-msg.error { display: block; background: rgba(239,68,68,.12); color: var(--red); }
+
+@media (max-width: 640px) {
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; }
+  .sidebar:not(.collapsed) ~ .content .top-bar .hamburger-desktop { display: none; }
+  .sidebar-header .hamburger { display: block; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .accounts-grid { grid-template-columns: 1fr; }
+  .settings-row { flex-wrap: wrap; gap: 6px; }
+  .settings-value { width: 100%; margin: 4px 0; }
+}
+
+/* ========== Playground Page ========== */
+.page-playground { padding: 0 !important; height: calc(100vh - 52px); }
+.pg-layout { display: flex; height: 100%; }
+.pg-sidebar { width: 280px; min-width: 280px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+.pg-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
+.pg-section-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; user-select: none; }
+.pg-section-header:hover { background: rgba(255,255,255,.03); }
+.pg-section-header .pg-toggle { font-size: 10px; transition: transform .2s; }
+.pg-section-header.collapsed .pg-toggle { transform: rotate(-90deg); }
+.pg-settings-body { padding: 8px 14px 14px; border-bottom: 1px solid var(--border); }
+.pg-settings-body.collapsed { display: none; }
+.pg-settings-body label { display: block; font-size: 11px; color: var(--muted); margin: 8px 0 3px; }
+.pg-settings-body label:first-child { margin-top: 0; }
+.pg-settings-body input, .pg-settings-body select { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; font-family: 'Courier New', monospace; }
+.pg-settings-body select { font-family: inherit; }
+.pg-settings-body input:focus, .pg-settings-body select:focus { border-color: var(--blue); }
+.pg-key-row { display: flex; gap: 4px; }
+.pg-key-row input { flex: 1; }
+.pg-key-row .pg-eye-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1; }
+.pg-key-row .pg-eye-btn:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.pg-system-prompt { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 11px; outline: none; resize: vertical; font-family: inherit; min-height: 36px; max-height: 80px; }
+.pg-system-prompt:focus { border-color: var(--blue); }
+.pg-history-list { flex: 1; overflow-y: auto; }
+.pg-history-item { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid rgba(42,45,62,.3); font-size: 12px; transition: background .1s; }
+.pg-history-item:hover { background: rgba(255,255,255,.03); }
+.pg-history-item.active { background: rgba(59,130,246,.08); border-left: 2px solid var(--blue); }
+.pg-history-item .pg-hist-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
+.pg-history-item .pg-hist-meta { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+.pg-history-item .pg-hist-delete { visibility: hidden; color: var(--red); cursor: pointer; font-size: 14px; line-height: 1; }
+.pg-history-item:hover .pg-hist-delete { visibility: visible; }
+#pgMessages { flex: 1; overflow-y: auto; padding: 20px; }
+.pg-msg { margin-bottom: 20px; display: flex; gap: 10px; max-width: 88%; }
+.pg-msg.user { margin-left: auto; flex-direction: row-reverse; }
+.pg-msg.assistant { margin-right: auto; }
+.pg-msg-avatar { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.pg-msg.user .pg-msg-avatar { background: var(--blue); color: #fff; }
+.pg-msg.assistant .pg-msg-avatar { background: #10b981; color: #fff; }
+.pg-msg-content { flex: 1; min-width: 0; }
+.pg-msg-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
+.pg-msg.user .pg-msg-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+.pg-msg.assistant .pg-msg-bubble { background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.pg-msg.assistant .pg-msg-bubble pre { background: #0a0c12; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; line-height: 1.5; margin: 8px 0; border: 1px solid var(--border); }
+.pg-msg.assistant .pg-msg-bubble code { font-family: 'Courier New', monospace; font-size: 11px; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
+.pg-msg.assistant .pg-msg-bubble pre code { background: none; padding: 0; font-size: 11px; }
+.pg-msg.assistant .pg-msg-bubble p { margin: 4px 0; }
+.pg-msg.assistant .pg-msg-bubble ul, .pg-msg.assistant .pg-msg-bubble ol { margin: 4px 0; padding-left: 20px; }
+.pg-msg-meta { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+.pg-msg-copy { font-size: 10px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0; }
+.pg-msg-copy:hover { color: var(--text); }
+.pg-input-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--card); align-items: flex-end; }
+.pg-input-row textarea { flex: 1; padding: 10px 14px; background: #0f1117; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; resize: none; font-family: inherit; line-height: 1.4; max-height: 120px; }
+.pg-input-row textarea:focus { border-color: var(--blue); }
+.pg-input-row .pg-send-btn { padding: 8px 16px; background: var(--blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; height: 38px; min-width: 60px; }
+.pg-input-row .pg-send-btn:hover { opacity: .9; }
+.pg-input-row .pg-send-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pg-input-row .pg-stop-btn { padding: 8px 16px; background: var(--red); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; height: 38px; display: none; }
+.pg-input-options { display: flex; gap: 6px; padding: 4px 16px 0; }
+.pg-option-chip { font-size: 10px; padding: 3px 8px; border-radius: 12px; cursor: pointer; background: rgba(255,255,255,.04); border: 1px solid var(--border); color: var(--muted); user-select: none; }
+.pg-option-chip.active { background: rgba(59,130,246,.12); border-color: var(--blue); color: var(--blue); }
+.pg-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--muted); }
+.pg-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: pg-spin .6s linear infinite; }
+@keyframes pg-spin { to { transform: rotate(360deg); } }
+.pg-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); user-select: none; }
+.pg-empty-icon { font-size: 52px; margin-bottom: 12px; opacity: .6; }
+.pg-curl-section { border-top: 1px solid var(--border); }
+.pg-curl-body { padding: 8px 14px 14px; font-size: 11px; }
+.pg-curl-body pre { background: #0a0c12; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #10b981; line-height: 1.5; border: 1px solid var(--border); margin: 6px 0 0; font-family: 'Courier New', monospace; }
+.pg-curl-body.collapsed { display: none; }
+.pg-curl-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.pg-curl-tab { padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; background: transparent; border: 1px solid var(--border); color: var(--muted); }
+.pg-curl-tab.active { background: rgba(59,130,246,.12); border-color: var(--blue); color: var(--blue); }
+.pg-copy-btn { font-size: 10px; color: var(--muted); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; margin-top: 6px; }
+.pg-copy-btn:hover { color: var(--text); border-color: var(--muted); }
+.pg-reasoning-box { margin-bottom: 8px; border: 1px solid rgba(234,179,8,.3); border-radius: 6px; overflow: hidden; }
+.pg-reasoning-header { padding: 6px 10px; background: rgba(234,179,8,.08); font-size: 11px; color: var(--yellow); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.pg-reasoning-body { padding: 8px 12px; background: rgba(234,179,8,.03); font-size: 11px; color: var(--muted); line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+.pg-reasoning-body.collapsed { display: none; }
+@media (max-width: 768px) {
+  .pg-layout { flex-direction: column; }
+  .pg-sidebar { width: 100%; min-width: 100%; max-height: 35vh; }
+  .pg-msg { max-width: 95%; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>Kiro Gateway</h1>
+    <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+  </div>
+  <div class="sidebar-nav">
+    <div class="nav-item active" data-page="accounts" onclick="switchPage('accounts')">
+      <span class="icon">&#128202;</span> 账号池管理
+    </div>
+    <div class="nav-item" data-page="settings" onclick="switchPage('settings')">
+      <span class="icon">&#9881;</span> 设置
+    </div>
+    <div class="nav-item" data-page="playground" onclick="switchPage('playground')">
+      <span class="icon">&#128172;</span> 调试
+    </div>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <button class="hamburger-desktop" onclick="toggleSidebar()">&#9776;</button>
+    <span class="badge" id="statusBadge">checking...</span>
+    <div class="controls-right" id="controlsRight">
+      <button class="btn btn-green" onclick="showAddModal()">+ 添加账号</button>
+      <button class="btn btn-yellow" onclick="triggerJsonImport()">导入JSON</button>
+      <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="handleJsonFile(event)">
+      <button class="btn btn-ghost" onclick="refresh()">刷新</button>
+    </div>
+  </div>
+
+  <!-- Page: Accounts Dashboard -->
+  <div class="page active" id="page-accounts">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="proxyIndicator" style="display:none;font-size:12px;padding:3px 10px;border-radius:20px;background:rgba(59,130,246,.12);color:var(--blue);">&#128274; Proxy: <span id="proxyUrlDisplay"></span></span>
+    </div>
+    <div class="stats-row" id="statsRow"></div>
+    <div class="section-header">
+      <h2>&#128187; 账号状态</h2>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <label style="font-size:12px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
+          <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll()"> 全选
+        </label>
+        <span style="font-size:13px;color:var(--muted)" id="accountSummary"></span>
+      </div>
+    </div>
+    <div id="batchBar" style="background:var(--card);border:1px solid var(--blue);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;">
+      <span style="font-size:13px;">已选 <span id="selectedCount" style="font-weight:700;color:var(--blue);">0</span> 个账号</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-sm btn-ghost" onclick="batchExport()" style="border-color:var(--blue);color:var(--blue);">&#128229; 导出</button>
+        <button class="btn btn-sm" onclick="showBatchDeleteConfirm()" style="background:var(--red);color:#fff;">&#128465; 删除</button>
+      </div>
+    </div>
+    <div class="accounts-grid" id="accountsGrid"></div>
+    <div class="section-header">
+      <h2>&#129302; 可用模型</h2>
+      <span style="font-size:13px;color:var(--muted)" id="modelCount"></span>
+    </div>
+    <div class="models-section" id="modelsSection"></div>
+    <div class="last-update" id="lastUpdate"></div>
+  </div>
+
+  <!-- Page: Settings -->
+  <div class="page" id="page-settings">
+    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">&#9881; 设置</h2>
+
+    <!-- API Key 管理 -->
+    <div class="settings-section">
+      <h3>API Key 管理</h3>
+
+      <div class="settings-row">
+        <div style="width:100%;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span class="settings-label">Admin API Key</span>
+            <div class="key-display" style="flex:1;margin:0 12px;">
+              <span class="key-text" id="adminKeyDisplay">-</span>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-sm btn-ghost" onclick="copyAdminKey()" title="Copy">&#128203;</button>
+              <button class="btn btn-sm btn-ghost" onclick="refreshAdminKey()" title="Refresh">&#128260;</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">用于后台管理面板的所有请求（账号管理、导入导出、系统设置）。请求头格式：<code>Authorization: Bearer &lt;key&gt;</code></div>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div style="width:100%;">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span class="settings-label">Proxy API Key</span>
+            <div class="key-display" style="flex:1;margin:0 12px;">
+              <span class="key-text" id="proxyApiKeyDisplay">-</span>
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-sm btn-ghost" onclick="copyProxyApiKey()" title="复制">&#128203;</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;">用于外部客户端（Cursor、VS Code 等）访问 Kiro API 代理。启动网关时通过 <code>PROXY_API_KEY</code> 环境变量设置。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 代理设置 -->
+    <div class="settings-section">
+      <h3>代理设置</h3>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">设置 Kiro API 的出站代理（HTTP/SOCKS）</div>
+      <div class="proxy-input-row">
+        <input id="proxyUrlInput" placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
+        <button class="btn btn-primary" onclick="saveProxy()">保存</button>
+        <button class="btn btn-ghost" onclick="clearProxy()">清除</button>
+      </div>
+      <div id="proxyStatus" style="margin-top:8px;font-size:12px;display:none;"></div>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">修改 Admin API Key 后页面会自动使用新 Key，无需重新登录。</div>
+  </div>
+
+  <!-- Page: Playground -->
+  <div class="page" id="page-playground">
+    <div class="pg-layout">
+      <!-- Left Sidebar -->
+      <div class="pg-sidebar">
+        <!-- Settings Panel -->
+        <div class="pg-settings-panel">
+          <div class="pg-section-header" id="pgSettingsHeader" onclick="togglePgSettings()">
+            <span>&#9881; 请求设置</span>
+            <span class="pg-toggle" id="pgSettingsToggle">&#9660;</span>
+          </div>
+          <div class="pg-settings-body" id="pgSettingsBody">
+            <label>API URL</label>
+            <input id="pgUrl" value="http://124.220.13.249/v1/chat/completions" spellcheck="false">
+
+            <label>API Key</label>
+            <div class="pg-key-row">
+              <input id="pgKey" type="password" value="kiro-gateway-2026" spellcheck="false">
+              <button class="pg-eye-btn" onclick="togglePgKey()" title="显示/隐藏 Key">&#128065;</button>
+            </div>
+
+            <label>模型</label>
+            <select id="pgModel"></select>
+
+            <label>System Prompt（可选）</label>
+            <textarea class="pg-system-prompt" id="pgSystemPrompt" placeholder="设置系统提示词..."></textarea>
+          </div>
+        </div>
+
+        <!-- Curl Examples -->
+        <div class="pg-curl-section">
+          <div class="pg-section-header" id="pgCurlHeader" onclick="togglePgCurl()">
+            <span>&#128279; API 调用示例</span>
+            <span class="pg-toggle" id="pgCurlToggle">&#9660;</span>
+          </div>
+          <div class="pg-curl-body" id="pgCurlBody">
+            <div class="pg-curl-tabs">
+              <span class="pg-curl-tab active" onclick="switchCurlTab('chat',this)">对话</span>
+              <span class="pg-curl-tab" onclick="switchCurlTab('models',this)">模型列表</span>
+              <span class="pg-curl-tab" onclick="switchCurlTab('stream',this)">流式</span>
+            </div>
+            <pre id="pgCurlCode">curl -X POST "http://124.220.13.249/v1/chat/completions" \
+  -H "Authorization: Bearer kiro-gateway-2026" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"auto-kiro","messages":[{"role":"user","content":"Hello!"}]}'</pre>
+            <button class="pg-copy-btn" onclick="copyPgCurl()">&#128203; 复制</button>
+            <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+              <b>models</b>: auto-kiro, claude-sonnet-4.6, claude-opus-4.7, gpt-5, ...<br>
+              <b>参数</b>: temperature, max_tokens, top_p 均为可选<br>
+              <b>响应</b>: OpenAI 兼容格式 (choices[0].message.content)
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat History -->
+        <div class="pg-section-header" style="border-bottom:1px solid var(--border);cursor:default;">
+          <span>&#128172; 对话历史</span>
+          <button class="pg-copy-btn" onclick="newPgChat()" title="新建对话" style="font-size:16px;padding:2px 6px;">+</button>
+        </div>
+        <div class="pg-history-list" id="pgHistoryList">
+          <div style="padding:20px;text-align:center;font-size:12px;color:var(--muted);">暂无历史记录</div>
+        </div>
+      </div>
+
+      <!-- Chat Area -->
+      <div class="pg-chat">
+        <div id="pgMessages">
+          <div class="pg-empty">
+            <div class="pg-empty-icon">&#128172;</div>
+            <div style="font-size:15px;font-weight:500;margin-bottom:4px;">Kiro API 调试</div>
+            <div style="font-size:12px;color:var(--muted);">选择一个模型，开始对话</div>
+          </div>
+        </div>
+        <div class="pg-input-options">
+          <span class="pg-option-chip active" id="pgChipStream" onclick="togglePgStream()">&#9878; 流式</span>
+          <span class="pg-option-chip" id="pgChipReasoning" onclick="togglePgReasoning()">&#128161; 推理</span>
+        </div>
+        <div class="pg-input-row">
+          <textarea id="pgInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1" onkeydown="pgInputKeydown(event)"></textarea>
+          <button class="pg-send-btn" id="pgSendBtn" onclick="sendPgMessage()">&#10148; 发送</button>
+          <button class="pg-stop-btn" id="pgStopBtn" onclick="stopPgStream()">&#9632; 停止</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+</div><!-- /app-layout -->
+
+<!-- Import JSON Modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-box">
+    <h3>导入 JSON 账号</h3>
+    <div id="importPreview">
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--muted);">已选择文件</div>
+        <div style="font-size:14px;font-weight:600;" id="importFileName">-</div>
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--muted);">找到账号</div>
+        <div style="font-size:22px;font-weight:700;" id="importCount">0</div>
+      </div>
+    </div>
+    <div id="importProgress" style="display:none;">
+      <div style="padding:10px 0;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;" id="importStatusText">正在导入...</div>
+        <div style="height:6px;background:#2a2d3e;border-radius:3px;overflow:hidden;">
+          <div id="importProgressBar" style="height:100%;width:0%;background:var(--blue);border-radius:3px;transition:width .3s;"></div>
+        </div>
+      </div>
+    </div>
+    <div id="importResult" style="display:none;">
+      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;text-align:center;padding:8px;background:rgba(34,197,94,.08);border-radius:6px;">
+            <div style="font-size:18px;font-weight:700;color:var(--green);" id="importSuccessCount">0</div>
+            <div style="font-size:11px;color:var(--muted);">成功</div>
+          </div>
+          <div style="flex:1;text-align:center;padding:8px;background:rgba(239,68,68,.08);border-radius:6px;">
+            <div style="font-size:18px;font-weight:700;color:var(--red);" id="importFailCount">0</div>
+            <div style="font-size:11px;color:var(--muted);">失败</div>
+          </div>
+        </div>
+      </div>
+      <div id="importDetails" style="max-height:180px;overflow-y:auto;font-size:12px;"></div>
+    </div>
+    <div id="importError" class="modal-msg"></div>
+    <div class="btn-row" id="importBtnRow">
+      <button class="btn-cancel" onclick="closeImportModal()" id="importCancelBtn">取消</button>
+      <button class="btn-primary" onclick="startJsonImport()" id="importStartBtn">开始导入</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Account Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <h3>添加新账号</h3>
+    <label>邮箱 *</label>
+    <input id="f_email" placeholder="user@example.com" oninput="clearMsg()">
+    <label>Client ID *</label>
+    <input id="f_clientId" placeholder="AWS Q Developer Client ID" oninput="clearMsg()">
+    <label>Client Secret *</label>
+    <input id="f_clientSecret" placeholder="JWT secret string" oninput="clearMsg()">
+    <label>Refresh Token *</label>
+    <input id="f_refreshToken" placeholder="Refresh token (aor...)" oninput="clearMsg()">
+    <label>区域</label>
+    <select id="f_region">
+      <option value="us-east-1">us-east-1</option>
+      <option value="us-west-2">us-west-2</option>
+      <option value="eu-central-1">eu-central-1</option>
+      <option value="ap-northeast-1">ap-northeast-1</option>
+    </select>
+    <label>Provider</label>
+    <input id="f_provider" value="BuilderId" placeholder="BuilderId">
+    <div class="modal-msg" id="modalMsg"></div>
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeAddModal()">取消</button>
+      <button class="btn-primary" id="btnSubmit" onclick="addAccount()">添加并初始化</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_KEY = 'kiro-admin-2026';
+let _apiKey = API_KEY;  // Runtime copy, updated on refresh
+const headers = () => ({ 'Authorization': 'Bearer ' + _apiKey });
+const $ = id => document.getElementById(id);
+
+// ---- Sidebar / Page Routing ----
+function toggleSidebar() {
+  $('sidebar').classList.toggle('collapsed');
+}
+
+function switchPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  $('page-' + name).classList.add('active');
+  document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
+  if (name === 'settings') loadSettings();
+  if (name === 'accounts') refresh();
+  // Collapse sidebar on mobile after nav
+  if (window.innerWidth <= 640) $('sidebar').classList.add('collapsed');
+}
+
+// ---- Dashboard ----
+function refresh() {
+  Promise.all([
+    fetch('/admin/api/dashboard', { headers: headers() }).then(r => r.json()),
+    fetch('/admin/api/models', { headers: headers() }).then(r => r.json())
+  ]).then(([dash, models]) => {
+    renderDashboard(dash);
+    renderModels(models);
+    $('lastUpdate').textContent = '最后更新: ' + new Date().toLocaleTimeString('zh-CN');
+  }).catch(e => {
+    $('lastUpdate').textContent = '加载失败: ' + e.message;
+    $('statusBadge').textContent = '连接失败';
+    $('statusBadge').className = 'badge cooldown';
+  });
+}
+
+function renderDashboard(d) {
+  const gw = d.gateway;
+  const rqs = d.requests;
+  const cr = d.credits;
+
+  // Use healthy_real for top badge (accounts with actual working runtime)
+  const realWorking = gw.accounts_healthy_real || 0;
+  if (realWorking === gw.accounts_total && gw.accounts_total > 0) {
+    $('statusBadge').textContent = '全部正常';
+    $('statusBadge').className = 'badge healthy';
+  } else if (realWorking > 0) {
+    $('statusBadge').textContent = realWorking + '/' + gw.accounts_total + ' 在线';
+    $('statusBadge').className = 'badge healthy';
+  } else if (gw.accounts_degraded > 0) {
+    $('statusBadge').textContent = gw.accounts_degraded + ' 个异常';
+    $('statusBadge').className = 'badge degraded';
+  } else {
+    $('statusBadge').textContent = gw.accounts_failed + ' 个离线';
+    $('statusBadge').className = 'badge cooldown';
+  }
+
+  $('statsRow').innerHTML = [
+    { label: '总账号', value: gw.accounts_total, sub: '正常 ' + gw.accounts_healthy + ' / 异常 ' + gw.accounts_degraded },
+    { label: '请求总数', value: rqs.total, sub: '成功 ' + rqs.success + ' / 失败 ' + rqs.failed },
+    { label: '每日额度', value: cr.remaining + ' / ' + cr.limit, sub: '已用 ' + cr.used },
+    { label: '运行时间', value: formatUptime(gw.uptime), sub: '' },
+  ].map(s => '<div class="stat-card"><div class="label">' + s.label + '</div><div class="value">' + s.value + '</div><div class="sub">' + s.sub + '</div></div>').join('');
+
+  const healthy = d.accounts.filter(a => a.status === 'healthy').length;
+  const degraded = d.accounts.filter(a => a.status === 'degraded' || a.status === 'cooldown').length;
+  $('accountSummary').textContent = healthy + ' 正常 / ' + degraded + ' 异常';
+
+  $('accountsGrid').innerHTML = d.accounts.map(a => {
+    const sc = a.status === 'healthy' ? 'healthy' : (a.status === 'cooldown' ? 'cooldown' : (a.status === 'pending' ? 'pending' : 'degraded'));
+    const statusMap = { 'healthy': '正常', 'cooldown': '冷却中', 'degraded': '异常', 'pending': '等待初始化' };
+    const sl = statusMap[a.status] || '未知';
+    const bc = a.status === 'healthy' ? '#22c55e' : a.status === 'cooldown' ? '#ef4444' : a.status === 'pending' ? '#8b8fa3' : '#eab308';
+
+    // Show real file data + runtime stats
+    const email = a.email || '-';
+    const sub = a.subscription || '-';
+    const region = a.region || '?';
+    const runtimeInfo = a.models > 0 ? '模型: ' + a.models : '';
+    const statsInfo = a.stats.total > 0 ? '请求: ' + a.stats.total : '';
+    const barHtml = a.stats.total > 0
+      ? '<div class="bar-bg"><div class="bar-fill" style="width:' + Math.round(a.stats.success / a.stats.total * 100) + '%;background:' + bc + '"></div></div>'
+      : '';
+
+    return '<div class="account-card" data-account-id="' + a.id + '">'
+      + '<div class="top">'
+      + '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">'
+      + '<input type="checkbox" class="acct-checkbox" data-id="' + a.id + '" onchange="updateBatchBar()">'
+      + '<span class="name">' + a.id + '</span>'
+      + '</label>'
+      + '<span class="badge ' + sc + '">' + sl + '</span>'
+      + '</div>'
+      + '<div class="detail" style="font-size:11px;">' + email + ' | ' + sub + '</div>'
+      + '<div class="detail">区域: <span>' + region + '</span>'
+      + (runtimeInfo ? ' | ' + runtimeInfo : '')
+      + (statsInfo ? ' | ' + statsInfo : '')
+      + ' | 失败: <span>' + a.failures + '</span></div>'
+      + barHtml
+      + '</div>';
+  }).join('');
+
+  // Proxy indicator
+  if (gw.proxy_url) {
+    $('proxyIndicator').style.display = 'inline-block';
+    $('proxyUrlDisplay').textContent = gw.proxy_url;
+  } else {
+    $('proxyIndicator').style.display = 'none';
+  }
+}
+
+function renderModels(d) {
+  const list = d.models || [];
+  $('modelCount').textContent = list.length + ' 个';
+  $('modelsSection').innerHTML = '<div class="models-tags">' + list.map(m => '<span class="model-tag">' + m + '</span>').join('') + '</div>';
+}
+
+function formatUptime(s) {
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 24) return Math.floor(h/24) + '天' + (h%24) + '小时';
+  if (h > 0) return h + '小时' + m + '分';
+  return m + '分钟';
+}
+
+// ---- Settings ----
+// Fallback clipboard copy that works over HTTP
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).catch(function() { copyViaTextarea(text); });
+  }
+  copyViaTextarea(text);
+}
+function copyViaTextarea(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+
+function loadSettings() {
+  fetch('/admin/api/settings', { headers: headers() })
+    .then(r => r.json())
+    .then(s => {
+      $('adminKeyDisplay').textContent = s.admin_key_masked;
+      $('proxyApiKeyDisplay').textContent = s.proxy_api_key_masked || '(未设置)';
+      $('proxyUrlInput').value = s.proxy_url || '';
+      if (s.proxy_url) {
+        showProxyStatus(true, '已启用: ' + s.proxy_url);
+      } else {
+        showProxyStatus(false, '未启用');
+      }
+    })
+    .catch(e => {
+      $('adminKeyDisplay').textContent = '加载失败';
+    });
+}
+
+function copyAdminKey() {
+  copyToClipboard(_apiKey);
+  toast('Admin API Key copied');
+}
+
+function copyProxyApiKey() {
+  fetch('/admin/api/settings', { headers: headers() })
+    .then(r => r.json())
+    .then(s => {
+      if (s.proxy_api_key) {
+        copyToClipboard(s.proxy_api_key);
+        toast('Proxy API Key copied');
+      } else {
+        toast('Proxy API Key not set');
+      }
+    });
+}
+
+function refreshAdminKey() {
+  if (!confirm('确认刷新 Admin API Key？当前页面的 Key 会自动更新。')) return;
+
+  fetch('/admin/api/settings/key/refresh', {
+    method: 'POST',
+    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      _apiKey = data.new_key;  // Update runtime key
+      $('adminKeyDisplay').textContent = data.new_key.slice(0, 8) + '...';
+      toast('Admin API Key 已刷新！新 Key: ' + data.new_key);
+    } else {
+      toast('刷新失败');
+    }
+  })
+  .catch(e => toast('请求失败: ' + e.message));
+}
+
+function saveProxy() {
+  const url = $('proxyUrlInput').value.trim();
+  fetch('/admin/api/settings/proxy', {
+    method: 'POST',
+    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ proxy_url: url })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (url) {
+        showProxyStatus(true, '已启用: ' + url);
+      } else {
+        showProxyStatus(false, '代理已清除');
+      }
+      toast(data.message);
+    }
+  })
+  .catch(e => toast('保存失败: ' + e.message));
+}
+
+function clearProxy() {
+  fetch('/admin/api/settings/proxy', {
+    method: 'DELETE',
+    headers: headers()
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      $('proxyUrlInput').value = '';
+      showProxyStatus(false, '代理已清除');
+      toast(data.message);
+    }
+  })
+  .catch(e => toast('清除失败: ' + e.message));
+}
+
+function showProxyStatus(enabled, text) {
+  const el = $('proxyStatus');
+  el.style.display = 'block';
+  el.style.color = enabled ? 'var(--green)' : 'var(--muted)';
+  el.textContent = (enabled ? '\u2705 ' : '\u274C ') + text;
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid #2a2d3e;color:#e1e4ed;padding:10px 20px;border-radius:8px;font-size:13px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:90vw;word-break:break-all;';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ---- Account Addition ----
+function showAddModal() {
+  $('addModal').classList.add('active');
+  $('modalMsg').style.display = 'none';
+  $('btnSubmit').disabled = false;
+}
+
+function closeAddModal() {
+  $('addModal').classList.remove('active');
+}
+
+function clearMsg() {
+  $('modalMsg').style.display = 'none';
+}
+
+function addAccount() {
+  const email = $('f_email').value.trim();
+  const clientId = $('f_clientId').value.trim();
+  const clientSecret = $('f_clientSecret').value.trim();
+  const refreshToken = $('f_refreshToken').value.trim();
+  const region = $('f_region').value;
+  const provider = $('f_provider').value.trim();
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    showMsg('error', 'Client ID, Client Secret 和 Refresh Token 为必填项');
+    return;
+  }
+
+  $('btnSubmit').disabled = true;
+  showMsg('info', '正在添加并初始化账号，请稍候...');
+
+  fetch('/admin/api/accounts', {
+    method: 'POST',
+    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ clientId, clientSecret, refreshToken, email, region, provider })
+  })
+  .then(r => r.json().then(d => ({ status: r.status, body: d })))
+  .then(({ status, body }) => {
+    if (status === 200 || status === 202) {
+      showMsg('success', body.message);
+      $('btnSubmit').disabled = false;
+      $('f_email').value = ''; $('f_clientId').value = '';
+      $('f_clientSecret').value = ''; $('f_refreshToken').value = '';
+      setTimeout(refresh, 2000);
+    } else {
+      showMsg('error', body.detail || '添加失败');
+      $('btnSubmit').disabled = false;
+    }
+  })
+  .catch(e => {
+    showMsg('error', '网络错误: ' + e.message);
+    $('btnSubmit').disabled = false;
+  });
+}
+
+function showMsg(type, text) {
+  const el = $('modalMsg');
+  el.textContent = text;
+  el.className = 'modal-msg ' + (type === 'error' ? 'error' : 'success');
+  el.style.display = 'block';
+}
+
+// ---- JSON Import ----
+let _importAccounts = [];
+
+function triggerJsonImport() { $('jsonFileInput').click(); }
+
+function handleJsonFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('JSON 根节点必须是数组');
+      _importAccounts = data;
+      $('importFileName').textContent = file.name;
+      $('importCount').textContent = data.length + ' 个';
+      $('importResult').style.display = 'none';
+      $('importProgress').style.display = 'none';
+      $('importPreview').style.display = 'block';
+      $('importError').style.display = 'none';
+      $('importStartBtn').disabled = false;
+      $('importCancelBtn').disabled = false;
+      $('importStartBtn').style.display = 'inline-block';
+      $('importCancelBtn').textContent = '取消';
+      $('importModal').classList.add('active');
+    } catch (err) { alert('JSON 解析失败: ' + err.message); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function closeImportModal() {
+  $('importModal').classList.remove('active');
+  _importAccounts = [];
+}
+
+function startJsonImport() {
+  const accounts = _importAccounts;
+  if (!accounts.length) return;
+  $('importPreview').style.display = 'none';
+  $('importProgress').style.display = 'block';
+  $('importResult').style.display = 'none';
+  $('importStartBtn').style.display = 'none';
+  $('importCancelBtn').disabled = true;
+  $('importCancelBtn').textContent = '导入中...';
+
+  const total = accounts.length;
+  let successCount = 0, failCount = 0;
+  const details = [];
+
+  function processNext(index) {
+    if (index >= total) {
+      $('importProgress').style.display = 'none';
+      $('importResult').style.display = 'block';
+      $('importSuccessCount').textContent = successCount;
+      $('importFailCount').textContent = failCount;
+      $('importCancelBtn').textContent = '关闭';
+      $('importCancelBtn').disabled = false;
+      $('importStartBtn').style.display = 'none';
+      $('importDetails').innerHTML = details.map(d => {
+        const icon = d.success ? '\u2705' : '\u274C';
+        return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid rgba(42,45,62,.3);display:flex;justify-content:space-between;">'
+          + '<span>' + icon + ' ' + (d.email || d.file || '#' + d.index) + '</span>'
+          + '<span style="color:' + (d.success ? 'var(--green)' : 'var(--red)') + ';">' + (d.success ? 'OK' : d.error) + '</span></div>';
+      }).join('');
+      setTimeout(refresh, 2000);
+      return;
+    }
+
+    const acct = accounts[index];
+    $('importStatusText').textContent = '正在导入 ' + (index + 1) + '/' + total + '...';
+    $('importProgressBar').style.width = Math.round((index / total) * 100) + '%';
+
+    fetch('/admin/api/accounts/batch', {
+      method: 'POST',
+      headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ accounts: [acct] })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.results && data.results[0]) {
+        const r = data.results[0];
+        r.success ? successCount++ : failCount++;
+        details.push({ index, email: acct.email || '', file: r.file, success: r.success, error: r.error || '' });
+      } else {
+        failCount++;
+        details.push({ index, email: acct.email || '', success: false, error: 'Unknown response' });
+      }
+      processNext(index + 1);
+    })
+    .catch(err => {
+      failCount++;
+      details.push({ index, email: acct.email || '', success: false, error: err.message });
+      processNext(index + 1);
+    });
+  }
+  processNext(0);
+}
+
+// ---- Batch Selection ----
+function getSelectedIds() {
+  const checks = document.querySelectorAll('.acct-checkbox:checked');
+  return Array.from(checks).map(c => c.getAttribute('data-id'));
+}
+
+function updateBatchBar() {
+  const ids = getSelectedIds();
+  const bar = $('batchBar');
+  if (ids.length > 0) {
+    bar.style.display = 'flex';
+    $('selectedCount').textContent = ids.length;
+  } else {
+    bar.style.display = 'none';
+  }
+  // Update select-all state
+  const allChecks = document.querySelectorAll('.acct-checkbox');
+  const checkedAll = allChecks.length > 0 && allChecks.length === ids.length;
+  $('selectAllCheck').checked = checkedAll;
+}
+
+function toggleSelectAll() {
+  const checked = $('selectAllCheck').checked;
+  document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = checked);
+  updateBatchBar();
+}
+
+function batchExport() {
+  const ids = getSelectedIds();
+  if (ids.length === 0) return;
+
+  fetch('/admin/api/accounts/batch/export', {
+    method: 'POST',
+    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ account_ids: ids })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.accounts || data.accounts.length === 0) {
+      toast('没有可导出的账号');
+      return;
+    }
+    // Trigger download as JSON file
+    const blob = new Blob([JSON.stringify(data.accounts, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'kiro-accounts-export-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('已导出 ' + data.accounts.length + ' 个账号');
+    // Clear selection
+    document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = false);
+    updateBatchBar();
+  })
+  .catch(e => toast('导出失败: ' + e.message));
+}
+
+function showBatchDeleteConfirm() {
+  const ids = getSelectedIds();
+  if (ids.length === 0) return;
+  if (!confirm('确认删除 ' + ids.length + ' 个账号？\n账号文件将被永久删除，不可恢复。')) return;
+
+  fetch('/admin/api/accounts/batch/delete', {
+    method: 'POST',
+    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ account_ids: ids })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      toast(data.message);
+      // Clear selection
+      document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = false);
+      updateBatchBar();
+      setTimeout(refresh, 1000);
+    } else {
+      toast('删除失败');
+    }
+  })
+  .catch(e => toast('删除失败: ' + e.message));
+}
+
+// ---- Modal overlay close ----
+$('addModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAddModal();
+});
+$('importModal').addEventListener('click', function(e) {
+  if (e.target === this && !$('importCancelBtn').disabled) closeImportModal();
+});
+
+// ---- Init ----
+refresh();
+setInterval(refresh, 10000);
+
+// ========== Playground Logic ==========
+const PG_STORAGE_KEY = 'kiro_playground';
+let pgStreaming = true;
+let pgShowReasoning = true;
+let pgAbortController = null;
+
+// Load state
+function pgLoadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(PG_STORAGE_KEY) || '{}');
+    return {
+      chats: s.chats || [],
+      activeIdx: s.activeIdx || -1,
+      settingsCollapsed: s.settingsCollapsed || false,
+      curlCollapsed: s.curlCollapsed || false,
+      keyVisible: false
+    };
+  } catch(e) { return { chats: [], activeIdx: -1, settingsCollapsed: false, curlCollapsed: false, keyVisible: false }; }
+}
+function pgSaveState(state) {
+  try {
+    const toSave = { chats: state.chats, activeIdx: state.activeIdx, settingsCollapsed: state.settingsCollapsed, curlCollapsed: state.curlCollapsed };
+    localStorage.setItem(PG_STORAGE_KEY, JSON.stringify(toSave));
+  } catch(e) {}
+}
+let pgState = pgLoadState();
+
+// Initialize
+function initPlayground() {
+  fetchPgModels();
+  applyPgState();
+}
+
+function applyPgState() {
+  if (pgState.settingsCollapsed) {
+    $('pgSettingsBody').classList.add('collapsed');
+    $('pgSettingsHeader').classList.add('collapsed');
+  }
+  if (pgState.curlCollapsed) {
+    $('pgCurlBody').classList.add('collapsed');
+    $('pgCurlHeader').classList.add('collapsed');
+  }
+  renderPgHistory();
+  if (pgState.activeIdx >= 0 && pgState.activeIdx < pgState.chats.length) {
+    renderPgMessages();
+  }
+}
+
+// ---- Model Fetching ----
+function fetchPgModels() {
+  const url = $('pgUrl').value.replace(/\/v1\/chat\/completions$/, '') + '/v1/models';
+  const key = $('pgKey').value;
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + key } })
+    .then(r => r.json())
+    .then(data => {
+      const models = data.data || data.models || [];
+      const sel = $('pgModel');
+      sel.innerHTML = models.map(m => {
+        const id = typeof m === 'string' ? m : m.id;
+        return '<option value="' + id + '">' + id + '</option>';
+      }).join('');
+      // Default: auto-kiro
+      const opts = Array.from(sel.options).map(o => o.value);
+      if (opts.includes('auto-kiro')) sel.value = 'auto-kiro';
+      else if (opts.includes('claude-sonnet-4.6')) sel.value = 'claude-sonnet-4.6';
+    })
+    .catch(() => {
+      // Fallback models
+      const sel = $('pgModel');
+      const fallback = ['auto-kiro','claude-opus-4.7','claude-sonnet-4.6','claude-haiku-4.5','claude-opus-4.5','gpt-5','gemini-2.5-flash'];
+      sel.innerHTML = fallback.map(m => '<option value="' + m + '">' + m + '</option>').join('');
+    });
+}
+
+// ---- Settings Toggle ----
+function togglePgSettings() {
+  const body = $('pgSettingsBody');
+  const header = $('pgSettingsHeader');
+  body.classList.toggle('collapsed');
+  header.classList.toggle('collapsed');
+  pgState.settingsCollapsed = body.classList.contains('collapsed');
+  pgSaveState(pgState);
+}
+
+function togglePgKey() {
+  const input = $('pgKey');
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+}
+
+function togglePgCurl() {
+  const body = $('pgCurlBody');
+  const header = $('pgCurlHeader');
+  body.classList.toggle('collapsed');
+  header.classList.toggle('collapsed');
+  pgState.curlCollapsed = body.classList.contains('collapsed');
+  pgSaveState(pgState);
+}
+
+// ---- Curl Tabs ----
+const CURL_EXAMPLES = {
+  chat: 'curl -X POST "' + ($('pgUrl')?$('pgUrl').value:'http://124.220.13.249/v1/chat/completions') + '" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","messages":[{"role":"user","content":"Hello!"}]}\'',
+  models: 'curl -X GET "http://124.220.13.249/v1/models" \\\n  -H "Authorization: Bearer YOUR_API_KEY"',
+  stream: 'curl -X POST "http://124.220.13.249/v1/chat/completions" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","stream":true,"messages":[{"role":"user","content":"Hello!"}]}\''
+};
+
+function switchCurlTab(tab, el) {
+  document.querySelectorAll('.pg-curl-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  $('pgCurlCode').textContent = CURL_EXAMPLES[tab];
+}
+
+function copyPgCurl() {
+  const code = $('pgCurlCode').textContent;
+  copyToClipboard(code);
+  toast('curl 命令已复制');
+}
+
+// ---- Chat History ----
+function newPgChat() {
+  pgState.chats.push({
+    id: Date.now(),
+    title: '新对话',
+    model: $('pgModel').value || 'auto-kiro',
+    systemPrompt: '',
+    messages: [],
+    createdAt: new Date().toISOString()
+  });
+  pgState.activeIdx = pgState.chats.length - 1;
+  pgSaveState(pgState);
+  renderPgHistory();
+  renderPgMessages();
+}
+
+function switchPgChat(idx) {
+  pgState.activeIdx = idx;
+  pgSaveState(pgState);
+  renderPgHistory();
+  renderPgMessages();
+}
+
+function deletePgChat(idx, e) {
+  e.stopPropagation();
+  if (!confirm('删除此对话？')) return;
+  pgState.chats.splice(idx, 1);
+  if (pgState.activeIdx >= pgState.chats.length) pgState.activeIdx = pgState.chats.length - 1;
+  pgSaveState(pgState);
+  renderPgHistory();
+  renderPgMessages();
+}
+
+function renderPgHistory() {
+  const list = $('pgHistoryList');
+  if (pgState.chats.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:var(--muted);">暂无历史记录</div>';
+    return;
+  }
+  list.innerHTML = pgState.chats.map((c, i) => {
+    const active = i === pgState.activeIdx ? ' active' : '';
+    const title = c.title || '新对话';
+    const time = c.createdAt ? new Date(c.createdAt).toLocaleString('zh-CN', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    const msgCount = c.messages ? c.messages.length + ' 条' : '';
+    return '<div class="pg-history-item' + active + '" onclick="switchPgChat(' + i + ')">'
+      + '<div class="pg-hist-title">' + escHtml(title) + '</div>'
+      + '<div class="pg-hist-meta"><span>' + time + ' &middot; ' + msgCount + '</span><span class="pg-hist-delete" onclick="deletePgChat(' + i + ',event)">&times;</span></div>'
+      + '</div>';
+  }).join('');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---- Messages Rendering ----
+function renderPgMessages() {
+  const container = $('pgMessages');
+  const chat = pgState.chats[pgState.activeIdx];
+  if (!chat || chat.messages.length === 0) {
+    container.innerHTML = '<div class="pg-empty"><div class="pg-empty-icon">&#128172;</div><div style="font-size:15px;font-weight:500;margin-bottom:4px;">Kiro API 调试</div><div style="font-size:12px;color:var(--muted);">选择一个模型，开始对话</div></div>';
+    return;
+  }
+  container.innerHTML = chat.messages.map((m, i) => {
+    const role = m.role || 'user';
+    const avatar = role === 'user' ? '&#128100;' : role === 'assistant' ? '&#129302;' : '&#9881;';
+    const content = formatPgContent(m.content || '');
+    const reasoning = m.reasoning || '';
+    const tokens = m.tokens ? (' | ' + m.tokens + ' tokens') : '';
+    const time = m.time || '';
+    let reasoningHtml = '';
+    if (reasoning) {
+      reasoningHtml = '<div class="pg-reasoning-box">'
+        + '<div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">'
+        + '<span>&#128161; 推理过程</span><span>&#9660;</span>'
+        + '</div>'
+        + '<div class="pg-reasoning-body">' + escHtml(reasoning) + '</div>'
+        + '</div>';
+    }
+    return '<div class="pg-msg ' + role + '">'
+      + '<div class="pg-msg-avatar">' + avatar + '</div>'
+      + '<div class="pg-msg-content">'
+      + reasoningHtml
+      + '<div class="pg-msg-bubble">' + content + '</div>'
+      + '<div class="pg-msg-meta"><span>' + time + tokens + '</span><button class="pg-msg-copy" onclick="copyPgMsg(' + i + ')">&#128203; 复制</button></div>'
+      + '</div></div>';
+  }).join('');
+  // Scroll to bottom
+  setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+}
+
+function formatPgContent(text) {
+  // Simple markdown-like formatting
+  let html = escHtml(text);
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Bold
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  // Newlines to <br> for non-pre content
+  // Already handled by white-space: pre-wrap
+  return html;
+}
+
+function copyPgMsg(idx) {
+  const chat = pgState.chats[pgState.activeIdx];
+  if (!chat || !chat.messages[idx]) return;
+  copyToClipboard(chat.messages[idx].content || '');
+  toast('已复制');
+}
+
+// ---- Sending Messages ----
+function pgInputKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendPgMessage();
+  }
+}
+
+function togglePgStream() {
+  pgStreaming = !pgStreaming;
+  $('pgChipStream').classList.toggle('active', pgStreaming);
+}
+
+function togglePgReasoning() {
+  pgShowReasoning = !pgShowReasoning;
+  $('pgChipReasoning').classList.toggle('active', pgShowReasoning);
+}
+
+async function sendPgMessage() {
+  const input = $('pgInput');
+  const content = input.value.trim();
+  if (!content) return;
+
+  // Ensure active chat exists
+  if (pgState.activeIdx < 0 || pgState.activeIdx >= pgState.chats.length) {
+    newPgChat();
+  }
+
+  const chat = pgState.chats[pgState.activeIdx];
+  const model = $('pgModel').value || 'auto-kiro';
+  const systemPrompt = $('pgSystemPrompt').value.trim();
+  const key = $('pgKey').value;
+  const url = $('pgUrl').value;
+
+  // Add user message
+  chat.messages.push({ role: 'user', content: content, time: new Date().toLocaleTimeString('zh-CN') });
+  // Update title from first user message
+  if (chat.messages.filter(m => m.role === 'user').length === 1) {
+    chat.title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+  }
+  pgSaveState(pgState);
+  renderPgHistory();
+  renderPgMessages();
+  input.value = '';
+  input.style.height = 'auto';
+  $('pgSendBtn').disabled = true;
+
+  // Build messages array
+  const msgs = [];
+  if (systemPrompt) {
+    msgs.push({ role: 'system', content: systemPrompt });
+  }
+  // Add conversation history
+  chat.messages.forEach(m => {
+    if (m.role === 'user' || m.role === 'assistant') {
+      msgs.push({ role: m.role, content: m.content });
+    }
+  });
+
+  // Add loading placeholder
+  const msgContainer = $('pgMessages');
+  const loadingEl = document.createElement('div');
+  loadingEl.className = 'pg-msg assistant';
+  loadingEl.innerHTML = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div><div class="pg-msg-content"><div class="pg-loading"><div class="pg-spinner"></div> 思考中...</div></div>';
+  msgContainer.appendChild(loadingEl);
+  msgContainer.scrollTop = msgContainer.scrollHeight;
+
+  if (pgStreaming) {
+    $('pgStopBtn').style.display = 'inline-block';
+    $('pgSendBtn').style.display = 'none';
+
+pgAbortController = new AbortController();
+    let fullContent = '';
+    let fullReasoning = '';
+    let pgRafPending = false;
+
+    // Build skeleton DOM once (avoids repeated innerHTML on every token)
+    loadingEl.innerHTML = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div>'
+      + '<div class="pg-msg-content">'
+      + '<div class="pg-reasoning-box" id="pgLiveReasoningBox" style="display:none;">'
+      + '<div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span>&#128161; 推理过程</span><span>&#9660;</span></div>'
+      + '<div class="pg-reasoning-body" id="pgLiveReasoning"></div></div>'
+      + '<div class="pg-msg-bubble" id="pgLiveBubble"><span class="pg-spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span></div>'
+      + '<div class="pg-msg-meta">流式输出中...</div></div>';
+
+    function pgFlushLive() {
+      pgRafPending = false;
+      var b = document.getElementById('pgLiveBubble');
+      var re = document.getElementById('pgLiveReasoning');
+      var rb = document.getElementById('pgLiveReasoningBox');
+      if (b) b.textContent = fullContent || '';
+      if (fullReasoning && pgShowReasoning) {
+        if (rb) rb.style.display = '';
+        if (re) re.textContent = fullReasoning;
+      }
+      var mc = document.getElementById('pgMessages') || loadingEl.parentElement;
+      if (mc) mc.scrollTop = mc.scrollHeight;
+    }
+
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: msgs,
+          stream: true
+        }),
+        signal: pgAbortController.signal
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 200));
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        var lines = buf.split('\n');
+        buf = lines.pop() || '';
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (line.indexOf('data: ') !== 0) continue;
+          var jd = line.slice(6).trim();
+          if (jd === '[DONE]') continue;
+
+          try {
+            var pj = JSON.parse(jd);
+            var d = pj.choices && pj.choices[0] ? pj.choices[0].delta : null;
+            if (d) {
+              if (d.content) fullContent += d.content;
+              if (d.reasoning_content) fullReasoning += d.reasoning_content;
+            }
+            if (!pgRafPending) { pgRafPending = true; requestAnimationFrame(pgFlushLive); }
+          } catch(e) {}
+        }
+      }
+      pgFlushLive();
+    } catch(e) {
+      if (e.name === 'AbortError') {
+        fullContent += '\n\n[已停止]';
+      } else {
+        fullContent += '\n\n[错误: ' + e.message + ']';
+      }
+      pgFlushLive();
+    }$('pgStopBtn').style.display = 'none';
+    $('pgSendBtn').style.display = 'inline-block';
+
+    // Replace loading with final
+    loadingEl.remove();
+    chat.messages.push({
+      role: 'assistant',
+      content: fullContent,
+      reasoning: fullReasoning,
+      time: new Date().toLocaleTimeString('zh-CN'),
+      tokens: fullContent.length
+    });
+    pgSaveState(pgState);
+    renderPgMessages();
+  } else {
+    // Non-streaming
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: msgs
+        })
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 200));
+      }
+
+      const data = await resp.json();
+      const assistantContent = data.choices?.[0]?.message?.content || JSON.stringify(data);
+      const reasoning = data.choices?.[0]?.message?.reasoning_content || '';
+      loadingEl.remove();
+      chat.messages.push({
+        role: 'assistant',
+        content: assistantContent,
+        reasoning: reasoning,
+        time: new Date().toLocaleTimeString('zh-CN'),
+        tokens: assistantContent.length
+      });
+      pgSaveState(pgState);
+      renderPgMessages();
+    } catch(e) {
+      loadingEl.remove();
+      chat.messages.push({
+        role: 'assistant',
+        content: '[错误: ' + e.message + ']',
+        time: new Date().toLocaleTimeString('zh-CN')
+      });
+      pgSaveState(pgState);
+      renderPgMessages();
+    }
+  }
+
+  $('pgSendBtn').disabled = false;
+  pgAbortController = null;
+}
+
+function updateLiveResponse(loadingEl, reasoning, content) {
+  let html = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div>';
+  html += '<div class="pg-msg-content">';
+  if (reasoning && pgShowReasoning) {
+    html += '<div class="pg-reasoning-box"><div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span>&#128161; 推理过程</span><span>&#9660;</span></div>';
+    html += '<div class="pg-reasoning-body">' + escHtml(reasoning) + '</div></div>';
+  }
+  html += '<div class="pg-msg-bubble">' + formatPgContent(content) + (content ? '' : '<span class="pg-spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span>') + '</div>';
+  html += '<div class="pg-msg-meta">流式输出中...</div>';
+  html += '</div>';
+  loadingEl.innerHTML = html;
+  const container = $('pgMessages');
+  container.scrollTop = container.scrollHeight;
+}
+
+function stopPgStream() {
+  if (pgAbortController) {
+    pgAbortController.abort();
+    pgAbortController = null;
+  }
+}
+
+// ---- Init on page switch ----
+const origSwitchPage = switchPage;
+switchPage = function(name) {
+  origSwitchPage(name);
+  if (name === 'playground') {
+    initPlayground();
+  }
+};
+
+// Auto-resize textarea
+(function() {
+  const ta = $('pgInput');
+  if (ta) {
+    ta.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+  }
+})();
+
+</script>
+</body>
+</html>

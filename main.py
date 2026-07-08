@@ -50,6 +50,7 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -86,6 +87,7 @@ from kiro.model_resolver import ModelResolver
 from kiro.account_manager import AccountManager
 from kiro.routes_openai import router as openai_router
 from kiro.routes_anthropic import router as anthropic_router
+from kiro.routes_admin import router as admin_router
 from kiro.exceptions import validation_exception_handler
 from kiro.debug_middleware import DebugLoggerMiddleware
 
@@ -560,6 +562,10 @@ app.add_middleware(
 app.add_middleware(DebugLoggerMiddleware)
 
 
+# --- Admin Static Files ---
+app.mount("/admin/static", StaticFiles(directory="static", html=True), name="admin")
+
+
 # --- Validation Error Handler Registration ---
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
@@ -570,6 +576,7 @@ app.include_router(openai_router)
 
 # Anthropic-compatible API: /v1/messages
 app.include_router(anthropic_router)
+app.include_router(admin_router)
 
 
 # --- Uvicorn log config ---

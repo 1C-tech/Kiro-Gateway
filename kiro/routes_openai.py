@@ -344,7 +344,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                 logger.warning(f"Failed to log Kiro request: {e}")
             
             # Create HTTP client
-            url = f"{auth_manager.api_host}/generateAssistantResponse"
+            url = f"{auth_manager.api_host}/"
             logger.debug(f"Kiro API URL: {url} (account: {account.id})")
             
             if request_data.stream:
@@ -594,7 +594,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     # Create HTTP client with retry logic
     # For streaming: use per-request client to avoid CLOSE_WAIT leak on VPN disconnect (issue #54)
     # For non-streaming: use shared client for connection pooling
-    url = f"{auth_manager.api_host}/generateAssistantResponse"
+    url = f"{auth_manager.api_host}/"
     logger.debug(f"Kiro API URL: {url}")
     
     if request_data.stream:
