@@ -4,460 +4,362 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kiro Gateway 管理面板</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: { colors: {
+  bg:'var(--bg)', card:'var(--card)', border:'var(--border)',
+  text:'var(--text)', muted:'var(--muted)', accent:'var(--accent)',
+  green:'var(--green)', yellow:'var(--yellow)', red:'var(--red)',
+}}}}
+</script>
 <style>
-:root {
-  --bg: #0f1117; --card: #1a1d2e; --border: #2a2d3e;
-  --text: #e1e4ed; --muted: #8b8fa3;
-  --green: #22c55e; --yellow: #eab308; --red: #ef4444; --blue: #3b82f6;
-  --radius: 10px; --sidebar-w: 200px;
+:root, [data-theme="dark-blue"] {
+  --bg:#0f1117; --card:#1a1d2e; --card2:#15172a; --border:#2a2d3e; --text:#e1e4ed; --muted:#8b8fa3;
+  --accent:#3b82f6; --green:#22c55e; --yellow:#eab308; --red:#ef4444;
+  --input-bg:#0a0c12; --sidebar-w:200px; --shadow:0 4px 24px rgba(0,0,0,.4); --shadow-sm:0 2px 8px rgba(0,0,0,.2);
 }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; height: 100vh; }
-
-/* Layout */
-.app-layout { display: flex; height: 100vh; }
-
-/* Sidebar */
-.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; transition: margin-left .25s; z-index: 50; }
-.sidebar.collapsed { margin-left: calc(var(--sidebar-w) * -1); }
-.sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.sidebar-header h1 { font-size: 16px; font-weight: 600; }
-.sidebar-header .hamburger { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; display: none; }
-.sidebar-nav { flex: 1; padding: 8px; }
-.nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--muted); transition: all .15s; margin-bottom: 2px; }
-.nav-item:hover { background: rgba(255,255,255,.05); color: var(--text); }
-.nav-item.active { background: rgba(59,130,246,.12); color: var(--blue); font-weight: 500; }
-.nav-item .icon { font-size: 16px; }
-
-/* Top bar (shown when sidebar is invisible on desktop toggle) */
-.top-bar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); min-height: 52px; }
-.top-bar .hamburger-desktop { background: none; border: none; color: var(--text); font-size: 20px; cursor: pointer; padding: 4px; }
-.top-bar .controls-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
-
-/* Content area */
-.content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.page { display: none; padding: 20px; flex: 1; }
-.page.active { display: block; }
-
-/* Dashboard styles */
-.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
-.stat-card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-.stat-card .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
-.stat-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.section-header { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 10px; }
-.section-header h2 { font-size: 15px; font-weight: 600; }
-.accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 20px; }
-.account-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
-.account-card .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.account-card .name { font-size: 13px; font-weight: 600; }
-.account-card .detail { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
-.account-card .detail span { color: var(--text); }
-.account-card .bar-bg { height: 4px; background: #2a2d3e; border-radius: 2px; margin-top: 6px; overflow: hidden; }
-.account-card .bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
-.account-card .quota-bar-bg { height: 6px; background: #2a2d3e; border-radius: 3px; margin-top: 4px; overflow: hidden; }
-.account-card .quota-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
-.account-card .quota-info { font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between; }
-.account-card .quota-info .used { color: var(--text); }
-.account-card .quota-info .remaining { color: var(--green); }
-.account-card .quota-info .remaining.low { color: var(--yellow); }
-.account-card .quota-info .remaining.empty { color: var(--red); }
-.models-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 20px; }
-.models-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.model-tag { padding: 3px 9px; background: rgba(59,130,246,.12); color: var(--blue); border-radius: 12px; font-size: 12px; }
-.last-update { font-size: 12px; color: var(--muted); text-align: center; margin-top: 16px; }
-
-/* Badges */
-.badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; }
-.badge.healthy { background: rgba(34,197,94,.15); color: var(--green); }
-.badge.degraded { background: rgba(234,179,8,.15); color: var(--yellow); }
-.badge.cooldown { background: rgba(239,68,68,.15); color: var(--red); }
-.account-card.sticky { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
-.account-card.sticky .sticky-badge { display: inline-block; background: var(--blue); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
-.account-card .cooldown-timer
-.card-sub-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 6px; }
-.card-plan-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(59,130,246,.12); color: var(--blue); font-weight: 500; white-space: nowrap; letter-spacing: .3px; }
-.card-req-stats { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.card-req-stats .req-ok { color: #22c55e; font-weight: 600; margin-right: 8px; }
-.card-req-stats .req-fail { color: #ef4444; font-weight: 600; }
-.filter-bar { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; }
-.filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.filter-bar select, .filter-bar input[type=text] { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--text); outline: none; }
-.filter-bar select:focus, .filter-bar input[type=text]:focus { border-color: var(--blue); }
-.filter-bar label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.filter-bar input[type=range] { width: 70px; accent-color: var(--blue); }
-.filter-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; font-size: 11px; color: var(--muted); cursor: pointer; }
-.filter-btn:hover { border-color: var(--blue); color: var(--text); }
-.filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
-.filter-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
- { font-size: 11px; color: var(--red); display: inline-block; }
-.badge.pending { background: rgba(139,143,163,.15); color: var(--muted); }
-.badge.idle { background: rgba(139,143,163,.15); color: var(--muted); }
-.badge.proxy-on { background: rgba(59,130,246,.15); color: var(--blue); }
-.badge.proxy-off { background: rgba(139,143,163,.15); color: var(--muted); }
-
-/* Checkbox */
-.acct-checkbox, #selectAllCheck { accent-color: var(--blue); cursor: pointer; }
-
-/* Buttons */
-.btn { border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.btn-primary { background: var(--blue); color: #fff; }
-.btn-green { background: var(--green); color: #fff; }
-.btn-yellow { background: var(--yellow); color: #000; }
-.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-.btn-sm { padding: 4px 10px; font-size: 11px; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-
-/* Settings page */
-.settings-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-.settings-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.settings-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(42,45,62,.5); }
-.settings-row:last-child { border-bottom: none; }
-.settings-label { font-size: 13px; color: var(--muted); min-width: 120px; }
-.settings-value { font-size: 13px; font-family: 'Courier New', monospace; word-break: break-all; flex: 1; margin: 0 12px; }
-.settings-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.key-display { display: flex; align-items: center; gap: 8px; background: #0a0c12; border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-family: 'Courier New', monospace; font-size: 13px; flex: 1; }
-.key-display .key-text { flex: 1; word-break: break-all; }
-.proxy-input-row { display: flex; gap: 8px; align-items: center; }
-.proxy-input-row input { flex: 1; padding: 8px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; font-family: 'Courier New', monospace; }
-.proxy-input-row input:focus { border-color: var(--blue); }
-
-/* Modal */
-.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; align-items: center; justify-content: center; }
-.modal-overlay.active { display: flex; }
-.modal-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; width: 480px; max-width: 94vw; max-height: 90vh; overflow-y: auto; }
-.modal-box h3 { font-size: 17px; margin-bottom: 14px; }
-.modal-box label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
-.modal-box input, .modal-box select { width: 100%; padding: 8px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; }
-.modal-box input:focus { border-color: var(--blue); }
-.modal-box .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
-.modal-box .btn-primary { background: var(--blue); color: #fff; }
-.modal-box .btn-cancel { background: #2a2d3e; color: var(--text); }
-.modal-box .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-.modal-msg { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 13px; display: none; }
-.modal-msg.success { display: block; background: rgba(34,197,94,.12); color: var(--green); }
-.modal-msg.error { display: block; background: rgba(239,68,68,.12); color: var(--red); }
-
-@media (max-width: 640px) {
-  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; }
-  .sidebar:not(.collapsed) ~ .content .top-bar .hamburger-desktop { display: none; }
-  .sidebar-header .hamburger { display: block; }
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .accounts-grid { grid-template-columns: 1fr; }
-  .settings-row { flex-wrap: wrap; gap: 6px; }
-  .settings-value { width: 100%; margin: 4px 0; }
+[data-theme="purple-tech"] {
+  --bg:#0a0a0f; --card:#13131f; --card2:#0e0e18; --border:#1e1e2e; --text:#e1e4ed; --muted:#71717a;
+  --accent:#6366f1; --green:#10b981; --yellow:#f59e0b; --red:#f43f5e;
+  --input-bg:#0a0a0f; --sidebar-w:200px; --shadow:0 4px 24px rgba(0,0,0,.5); --shadow-sm:0 2px 8px rgba(0,0,0,.3);
 }
-
-/* ========== Playground Page ========== */
-.page-playground { padding: 0 !important; height: calc(100vh - 52px); }
-.pg-layout { display: flex; height: 100%; }
-.pg-sidebar { width: 280px; min-width: 280px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.pg-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
-.pg-section-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; user-select: none; }
-.pg-section-header:hover { background: rgba(255,255,255,.03); }
-.pg-section-header .pg-toggle { font-size: 10px; transition: transform .2s; }
-.pg-section-header.collapsed .pg-toggle { transform: rotate(-90deg); }
-.pg-settings-body { padding: 8px 14px 14px; border-bottom: 1px solid var(--border); }
-.pg-settings-body.collapsed { display: none; }
-.pg-settings-body label { display: block; font-size: 11px; color: var(--muted); margin: 8px 0 3px; }
-.pg-settings-body label:first-child { margin-top: 0; }
-.pg-settings-body input, .pg-settings-body select { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; outline: none; font-family: 'Courier New', monospace; }
-.pg-settings-body select { font-family: inherit; }
-.pg-settings-body input:focus, .pg-settings-body select:focus { border-color: var(--blue); }
-.pg-key-row { display: flex; gap: 4px; }
-.pg-key-row input { flex: 1; }
-.pg-key-row .pg-eye-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 14px; line-height: 1; }
-.pg-key-row .pg-eye-btn:hover { background: rgba(255,255,255,.08); color: var(--text); }
-.pg-system-prompt { width: 100%; padding: 6px 10px; background: #0f1117; border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 11px; outline: none; resize: vertical; font-family: inherit; min-height: 36px; max-height: 80px; }
-.pg-system-prompt:focus { border-color: var(--blue); }
-.pg-history-list { flex: 1; overflow-y: auto; }
-.pg-history-item { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid rgba(42,45,62,.3); font-size: 12px; transition: background .1s; }
-.pg-history-item:hover { background: rgba(255,255,255,.03); }
-.pg-history-item.active { background: rgba(59,130,246,.08); border-left: 2px solid var(--blue); }
-.pg-history-item .pg-hist-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-.pg-history-item .pg-hist-meta { font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
-.pg-history-item .pg-hist-delete { visibility: hidden; color: var(--red); cursor: pointer; font-size: 14px; line-height: 1; }
-.pg-history-item:hover .pg-hist-delete { visibility: visible; }
-#pgMessages { flex: 1; overflow-y: auto; padding: 20px; }
-.pg-msg { margin-bottom: 20px; display: flex; gap: 10px; max-width: 88%; }
-.pg-msg.user { margin-left: auto; flex-direction: row-reverse; }
-.pg-msg.assistant { margin-right: auto; }
-.pg-msg-avatar { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-.pg-msg.user .pg-msg-avatar { background: var(--blue); color: #fff; }
-.pg-msg.assistant .pg-msg-avatar { background: #10b981; color: #fff; }
-.pg-msg-content { flex: 1; min-width: 0; }
-.pg-msg-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6; word-wrap: break-word; white-space: pre-wrap; }
-.pg-msg.user .pg-msg-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
-.pg-msg.assistant .pg-msg-bubble { background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
-.pg-msg.assistant .pg-msg-bubble pre { background: #0a0c12; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; line-height: 1.5; margin: 8px 0; border: 1px solid var(--border); }
-.pg-msg.assistant .pg-msg-bubble code { font-family: 'Courier New', monospace; font-size: 11px; background: rgba(255,255,255,.06); padding: 1px 5px; border-radius: 3px; }
-.pg-msg.assistant .pg-msg-bubble pre code { background: none; padding: 0; font-size: 11px; }
-.pg-msg.assistant .pg-msg-bubble p { margin: 4px 0; }
-.pg-msg.assistant .pg-msg-bubble ul, .pg-msg.assistant .pg-msg-bubble ol { margin: 4px 0; padding-left: 20px; }
-.pg-msg-meta { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; align-items: center; gap: 8px; }
-.pg-msg-copy { font-size: 10px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0; }
-.pg-msg-copy:hover { color: var(--text); }
-.pg-input-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--card); align-items: flex-end; }
-.pg-input-row textarea { flex: 1; padding: 10px 14px; background: #0f1117; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; outline: none; resize: none; font-family: inherit; line-height: 1.4; max-height: 120px; }
-.pg-input-row textarea:focus { border-color: var(--blue); }
-.pg-input-row .pg-send-btn { padding: 8px 16px; background: var(--blue); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; height: 38px; min-width: 60px; }
-.pg-input-row .pg-send-btn:hover { opacity: .9; }
-.pg-input-row .pg-send-btn:disabled { opacity: .4; cursor: not-allowed; }
-.pg-input-row .pg-stop-btn { padding: 8px 16px; background: var(--red); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; height: 38px; display: none; }
-.pg-input-options { display: flex; gap: 6px; padding: 4px 16px 0; }
-.pg-option-chip { font-size: 10px; padding: 3px 8px; border-radius: 12px; cursor: pointer; background: rgba(255,255,255,.04); border: 1px solid var(--border); color: var(--muted); user-select: none; }
-.pg-option-chip.active { background: rgba(59,130,246,.12); border-color: var(--blue); color: var(--blue); }
-.pg-loading { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--muted); }
-.pg-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: pg-spin .6s linear infinite; }
-@keyframes pg-spin { to { transform: rotate(360deg); } }
-.pg-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); user-select: none; }
-.pg-empty-icon { font-size: 52px; margin-bottom: 12px; opacity: .6; }
-.pg-curl-section { border-top: 1px solid var(--border); }
-.pg-curl-body { padding: 8px 14px 14px; font-size: 11px; }
-.pg-curl-body pre { background: #0a0c12; padding: 10px 12px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #10b981; line-height: 1.5; border: 1px solid var(--border); margin: 6px 0 0; font-family: 'Courier New', monospace; }
-.pg-curl-body.collapsed { display: none; }
-.pg-curl-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
-.pg-curl-tab { padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; background: transparent; border: 1px solid var(--border); color: var(--muted); }
-.pg-curl-tab.active { background: rgba(59,130,246,.12); border-color: var(--blue); color: var(--blue); }
-.pg-copy-btn { font-size: 10px; color: var(--muted); cursor: pointer; background: none; border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; margin-top: 6px; }
-.pg-copy-btn:hover { color: var(--text); border-color: var(--muted); }
-.pg-reasoning-box { margin-bottom: 8px; border: 1px solid rgba(234,179,8,.3); border-radius: 6px; overflow: hidden; }
-.pg-reasoning-header { padding: 6px 10px; background: rgba(234,179,8,.08); font-size: 11px; color: var(--yellow); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-.pg-reasoning-body { padding: 8px 12px; background: rgba(234,179,8,.03); font-size: 11px; color: var(--muted); line-height: 1.5; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
-.pg-reasoning-body.collapsed { display: none; }
-@media (max-width: 768px) {
-  .pg-layout { flex-direction: column; }
-  .pg-sidebar { width: 100%; min-width: 100%; max-height: 35vh; }
-  .pg-msg { max-width: 95%; }
+[data-theme="forest-green"] {
+  --bg:#0d1f17; --card:#13291f; --card2:#0e1f15; --border:#1e3a2c; --text:#d1fae5; --muted:#6b9b7e;
+  --accent:#10b981; --green:#84cc16; --yellow:#f59e0b; --red:#f43f5e;
+  --input-bg:#0a1810; --sidebar-w:200px; --shadow:0 4px 24px rgba(0,0,0,.4); --shadow-sm:0 2px 8px rgba(0,0,0,.2);
 }
-
+[data-theme="solarized-dark"] {
+  --bg:#002b36; --card:#073642; --card2:#052a33; --border:#0d4a5a; --text:#93a1a1; --muted:#586e75;
+  --accent:#268bd2; --green:#2aa198; --yellow:#b58900; --red:#dc322f;
+  --input-bg:#002b36; --sidebar-w:200px; --shadow:0 4px 24px rgba(0,0,0,.3); --shadow-sm:0 2px 8px rgba(0,0,0,.15);
+}
+[data-theme="light-clean"] {
+  --bg:#f8f9fa; --card:#ffffff; --card2:#f1f3f5; --border:#e5e7eb; --text:#1f2937; --muted:#6b7280;
+  --accent:#3b82f6; --green:#16a34a; --yellow:#d97706; --red:#dc2626;
+  --input-bg:#f3f4f6; --sidebar-w:200px; --shadow:0 4px 20px rgba(0,0,0,.08); --shadow-sm:0 1px 4px rgba(0,0,0,.04);
+}
+[data-theme="warm-sand"] {
+  --bg:#f5f0e8; --card:#fffdf8; --card2:#f0ebe0; --border:#d6cfc0; --text:#3d2b1f; --muted:#8a7560;
+  --accent:#d97706; --green:#059669; --yellow:#ca8a04; --red:#dc2626;
+  --input-bg:#ede5d8; --sidebar-w:200px; --shadow:0 4px 20px rgba(120,80,30,.08); --shadow-sm:0 1px 4px rgba(120,80,30,.04);
+}
+[data-theme="rose-light"] {
+  --bg:#fdf2f8; --card:#ffffff; --card2:#fae8f0; --border:#f3d4e3; --text:#831843; --muted:#a85586;
+  --accent:#ec4899; --green:#059669; --yellow:#d97706; --red:#dc2626;
+  --input-bg:#fce7f3; --sidebar-w:200px; --shadow:0 4px 20px rgba(200,50,120,.08); --shadow-sm:0 1px 4px rgba(200,50,120,.04);
+}
+[data-theme="nord-light"] {
+  --bg:#eceff4; --card:#ffffff; --card2:#e5e9f0; --border:#d8dee9; --text:#2e3440; --muted:#81a1c1;
+  --accent:#5e81ac; --green:#5e8b3a; --yellow:#d97706; --red:#bf616a;
+  --input-bg:#e5e9f0; --sidebar-w:200px; --shadow:0 4px 20px rgba(46,52,64,.08); --shadow-sm:0 1px 4px rgba(46,52,64,.04);
+}
+body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:var(--bg); background-image:radial-gradient(ellipse at top left, color-mix(in srgb,var(--accent) 6%, transparent), transparent 50%), radial-gradient(ellipse at bottom right, color-mix(in srgb,var(--accent) 4%, transparent), transparent 50%); background-attachment:fixed; color:var(--text); overflow:hidden; height:100vh; }
+.card-gradient { background:linear-gradient(145deg, var(--card), var(--card2)); }
+.sidebar-bg { background:linear-gradient(180deg, var(--card), var(--card2)); }
+.lift { transition:all .2s ease; }
+.lift:hover { transform:translateY(-2px); box-shadow:var(--shadow); border-color:color-mix(in srgb,var(--accent) 40%, var(--border)); }
+.glow-accent { box-shadow:0 0 12px color-mix(in srgb,var(--accent) 30%, transparent); }
+@keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+.pulse-dot { animation:pulse-dot 2s ease-in-out infinite; }
+@keyframes fade-in { from{opacity:0;transform:translateY(8px);} to{opacity:1;transform:translateY(0);} }
+.fade-in { animation:fade-in .3s ease; }
+@keyframes slide-up { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+.slide-up { animation:slide-up .25s ease; }
+@keyframes slide-in-right { from{opacity:0;transform:translateX(40px);} to{opacity:1;transform:translateX(0);} }
+.slide-in-right { animation:slide-in-right .3s ease; }
+.btn-hover { transition:all .15s ease; }
+.btn-hover:hover { filter:brightness(1.1); transform:translateY(-1px); }
+.btn-hover:active { transform:translateY(0px) scale(.98); }
+.nav-item { position:relative; transition:all .15s ease; }
+.nav-item::before { content:''; position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:0; background:var(--accent); border-radius:0 3px 3px 0; transition:height .2s ease; }
+.nav-item.nav-active::before { height:60%; }
+.nav-item:hover::before { height:30%; }
+.stat-card-top { position:relative; overflow:hidden; }
+.stat-card-top::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; background:linear-gradient(90deg, var(--accent), transparent); }
+.modal-overlay { backdrop-filter:blur(4px); }
+.modal-overlay > div { animation:slide-up .25s ease; }
+.toast-anim { animation:slide-in-right .3s ease; }
+.accent-soft { background:color-mix(in srgb,var(--accent) 12%,transparent); }
+.green-soft { background:color-mix(in srgb,var(--green) 15%,transparent); }
+.yellow-soft { background:color-mix(in srgb,var(--yellow) 15%,transparent); }
+.red-soft { background:color-mix(in srgb,var(--red) 15%,transparent); }
+.muted-soft { background:color-mix(in srgb,var(--muted) 15%,transparent); }
+.nav-active { background:linear-gradient(90deg, color-mix(in srgb,var(--accent) 15%,transparent), color-mix(in srgb,var(--accent) 5%,transparent)); color:var(--accent); font-weight:500; }
+.badge { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:20px; font-size:11px; font-weight:500; transition:all .15s; }
+.badge::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.badge.healthy::before { animation:pulse-dot 2s ease-in-out infinite; }
+.badge.healthy { background:color-mix(in srgb,var(--green) 15%,transparent); color:var(--green); }
+.badge.degraded { background:color-mix(in srgb,var(--yellow) 15%,transparent); color:var(--yellow); }
+.badge.cooldown { background:color-mix(in srgb,var(--red) 15%,transparent); color:var(--red); }
+.badge.pending, .badge.idle { background:color-mix(in srgb,var(--muted) 15%,transparent); color:var(--muted); }
+.badge.proxy-on { background:color-mix(in srgb,var(--accent) 15%,transparent); color:var(--accent); }
+.badge.proxy-off { background:color-mix(in srgb,var(--muted) 15%,transparent); color:var(--muted); }
+.account-card { transition:all .2s ease; }
+.account-card:hover { transform:translateY(-2px); box-shadow:var(--shadow); border-color:color-mix(in srgb,var(--accent) 40%, var(--border)); }
+.account-card.sticky { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 16px color-mix(in srgb,var(--accent) 20%, transparent); }
+.account-card.sticky .sticky-badge { display:inline-block; background:var(--accent); color:#fff; font-size:10px; padding:1px 6px; border-radius:8px; margin-left:6px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.spinner { border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .6s linear infinite; display:inline-block; }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:color-mix(in srgb,var(--muted) 40%, transparent); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--muted); }
+.sidebar { transition:margin-left .25s; }
+.sidebar.collapsed { margin-left:calc(var(--sidebar-w) * -1); }
+.sidebar-header { position:relative; }
+.sidebar-header::after { content:''; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg, transparent, var(--accent), transparent); opacity:.5; }
+input:focus, select:focus, textarea:focus { border-color:var(--accent)!important; box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)!important; }
+.empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; color:var(--muted); text-align:center; }
+.empty-state-icon { font-size:48px; margin-bottom:12px; opacity:.5; }
+.model-tag { display:inline-block; padding:3px 10px; border-radius:6px; font-size:11px; font-family:monospace; background:color-mix(in srgb,var(--accent) 8%,transparent); border:1px solid color-mix(in srgb,var(--accent) 20%,var(--border)); color:var(--accent); transition:all .15s; }
+.model-tag:hover { background:color-mix(in srgb,var(--accent) 15%,transparent); border-color:var(--accent); }
+.ic { display:inline-block; vertical-align:middle; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.ic-sm { width:14px; height:14px; }
+.ic-md { width:16px; height:16px; }
+.ic-lg { width:20px; height:20px; }
+.ic-xl { width:28px; height:28px; }
+.log-detail { max-height:0; overflow:hidden; transition:max-height .25s; padding:0 12px; }
+tr.expanded .log-detail { max-height:300px; padding:8px 12px; }
+.page { display:none; }
+.page.active { display:block; animation:fade-in .25s ease; }
+.modal-overlay { display:none; }
+.modal-overlay.active { display:flex; }
+.pg-settings-body.collapsed, .pg-curl-body.collapsed { display:none; }
+.cnsl-bar .tip { display:none; }
+.cnsl-bar:hover .tip { display:block; }
+.cnsl-scale .sbtn.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+.cnsl-logs-ctrl .logbtn.active { background:var(--green);color:#fff;border-color:var(--green); }
+.cnsl-log-table tr:hover td { background:color-mix(in srgb,var(--accent) 4%, transparent); }
+.cnsl-bar { transition:all .15s; border-radius:3px 3px 0 0; }
+.cnsl-bar:hover { filter:brightness(1.2); transform:scaleY(1.05); transform-origin:bottom; }
+@media (max-width:640px) {
+  .sidebar { position:fixed; left:0; top:0; bottom:0; }
+  .sidebar:not(.collapsed) ~ .content .hamburger-desktop { display:none; }
+  .sidebar-header .hamburger { display:block; }
+}
+@media (max-width:768px) {
+  .pg-layout { flex-direction:column; }
+  .pg-sidebar { width:100%; min-width:100%; max-height:35vh; }
+}
 </style>
 </head>
 <body>
 
-<div class="app-layout">
+<!-- SVG Icon Sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="i-menu" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+<symbol id="i-accounts" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-playground" viewBox="0 0 24 24"><path d="M9 3v6l-5 9a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-9V3"/><path d="M8 3h8"/><path d="M7 14h10"/></symbol>
+<symbol id="i-console" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+<symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><line x1="7" y1="7" x2="7" y2="7"/><line x1="7" y1="17" x2="7" y2="17"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="8.5" cy="10.5" r="1.5"/><circle cx="15.5" cy="10.5" r="1.5"/><circle cx="10" cy="15.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-1a2 2 0 0 1 2-2h1a3 3 0 0 0 3-3 10 10 0 0 0-8-12z"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></symbol>
+<symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></symbol>
+<symbol id="i-chevron-up" viewBox="0 0 24 24"><polyline points="6 15 12 9 18 15"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12c1 1 2 2 2 3h4c0-1 1-2 2-3a7 7 0 0 0-4-12z"/></symbol>
+<symbol id="i-stream" viewBox="0 0 24 24"><path d="M3 12c2 0 2-4 4-4s2 4 4 4 2-4 4-4 2 4 4 4"/><path d="M3 18c2 0 2-4 4-4s2 4 4 4 2-4 4-4 2 4 4 4"/><path d="M3 6c2 0 2-4 4-4s2 4 4 4 2-4 4-4 2 4 4 4"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/><path d="M7.5 5.5l9 5"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><line x1="4" y1="20" x2="4" y2="10"/><line x1="10" y1="20" x2="10" y2="4"/><line x1="16" y1="20" x2="16" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><polygon points="3 4 21 4 14 12 14 19 10 21 10 12 3 4"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></symbol>
+<symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 4v4"/><circle cx="9" cy="14" r="1"/><circle cx="15" cy="14" r="1"/><path d="M9 18h6"/><circle cx="12" cy="4" r="1"/></symbol>
+</svg>
+
+<div class="flex h-screen">
 
 <!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-  <div class="sidebar-header">
-    <h1>Kiro Gateway</h1>
-    <button class="hamburger" onclick="toggleSidebar()">&#9776;</button>
+<div class="sidebar sidebar-bg flex flex-col border-r border-border z-50" style="width:var(--sidebar-w);min-width:var(--sidebar-w);" id="sidebar">
+  <div class="sidebar-header flex items-center justify-between px-4 py-4 border-b border-border">
+    <h1 class="text-base font-semibold" style="background:linear-gradient(135deg,var(--text),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Kiro Gateway</h1>
+    <button class="hamburger hidden bg-transparent border-none text-text text-xl cursor-pointer p-1" onclick="toggleSidebar()"><svg class="ic ic-lg"><use href="#i-menu"/></svg></button>
   </div>
-  <div class="sidebar-nav">
-    <div class="nav-item active" data-page="accounts" onclick="switchPage('accounts')">
-      <span class="icon">&#128202;</span> 账号池管理
+  <div class="sidebar-nav flex-1 p-2">
+    <div class="nav-item nav-active flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm text-muted mb-0.5" data-page="accounts" onclick="switchPage('accounts')">
+      <span class="icon text-base"><svg class="ic ic-md"><use href="#i-accounts"/></svg></span> 账号池管理
     </div>
-    <div class="nav-item" data-page="playground" onclick="switchPage('playground')">
-      <span class="icon">&#128172;</span> 调试
+    <div class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm text-muted mb-0.5" data-page="playground" onclick="switchPage('playground')">
+      <span class="icon text-base"><svg class="ic ic-md"><use href="#i-playground"/></svg></span> 调试
     </div>
-    <div class="nav-item" data-page="console" onclick="switchPage('console')">
-      <span class="icon">&#128200;</span> 控制台
+    <div class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm text-muted mb-0.5" data-page="console" onclick="switchPage('console')">
+      <span class="icon text-base"><svg class="ic ic-md"><use href="#i-console"/></svg></span> 控制台
     </div>
-    <div class="nav-item" data-page="settings" onclick="switchPage('settings')">
-      <span class="icon">&#9881;</span> 设置
+    <div class="nav-item flex items-center gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer text-sm text-muted mb-0.5" data-page="settings" onclick="switchPage('settings')">
+      <span class="icon text-base"><svg class="ic ic-md"><use href="#i-settings"/></svg></span> 设置
     </div>
   </div>
 </div>
 
 <!-- Content -->
-<div class="content">
+<div class="content flex-1 overflow-y-auto flex flex-col">
 
   <!-- Top bar -->
-  <div class="top-bar">
-    <button class="hamburger-desktop" onclick="toggleSidebar()">&#9776;</button>
+  <div class="top-bar sidebar-bg flex items-center gap-3 px-5 border-b border-border" style="min-height:52px;box-shadow:var(--shadow-sm);">
+    <button class="hamburger-desktop bg-transparent border-none text-text text-xl cursor-pointer p-1" onclick="toggleSidebar()"><svg class="ic ic-lg"><use href="#i-menu"/></svg></button>
     <span class="badge" id="statusBadge">checking...</span>
-    <div class="controls-right" id="controlsRight">
-      
-      <button class="btn btn-yellow" onclick="triggerJsonImport()">导入JSON</button>
+    <div class="controls-right ml-auto flex gap-2.5 items-center" id="controlsRight">
+      <button class="btn btn-yellow btn-hover border-none px-3.5 py-1.5 rounded-md cursor-pointer text-xs bg-yellow text-black" onclick="triggerJsonImport()">导入JSON</button>
       <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="handleJsonFile(event)">
-      <button class="btn btn-ghost" id="refreshCreditsBtn" onclick="refreshCredits()">刷新额度</button>
-      <button class="btn btn-ghost" id="checkAlivenessBtn" onclick="checkAliveness()">测活</button>
+      <button class="btn btn-ghost btn-hover bg-transparent border border-border text-text px-3.5 py-1.5 rounded-md cursor-pointer text-xs" id="refreshCreditsBtn" onclick="refreshCredits()">刷新额度</button>
+      <button class="btn btn-ghost btn-hover bg-transparent border border-border text-text px-3.5 py-1.5 rounded-md cursor-pointer text-xs" id="checkAlivenessBtn" onclick="checkAliveness()">测活</button>
     </div>
   </div>
 
   <!-- Page: Accounts Dashboard -->
-  <div class="page active" id="page-accounts">
-    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <span id="proxyIndicator" style="display:none;font-size:12px;padding:3px 10px;border-radius:20px;background:rgba(59,130,246,.12);color:var(--blue);">&#128274; Proxy: <span id="proxyUrlDisplay"></span></span>
+  <div class="page active p-5 flex-1" id="page-accounts">
+    <div class="flex gap-2 items-center flex-wrap mb-2">
+      <span id="proxyIndicator" class="text-xs px-2.5 py-1 rounded-full accent-soft" style="color:var(--accent);display:none;"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-lock"/></svg>Proxy: <span id="proxyUrlDisplay"></span></span>
     </div>
-    <div class="stats-row" id="statsRow"></div>
-    <div class="section-header">
-      <h2>&#128187; 账号状态</h2>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <label style="font-size:12px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:4px;">
-          <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll()"> 全选
+    <div class="stats-row grid gap-4 mb-5" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));" id="statsRow"></div>
+    <div class="flex justify-between items-center my-4">
+      <h2 class="text-sm font-semibold"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-server"/></svg>账号状态</h2>
+      <div class="flex items-center gap-2.5">
+        <label class="text-xs text-muted cursor-pointer flex items-center gap-1">
+          <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll()" style="accent-color:var(--accent);cursor:pointer;"> 全选
         </label>
-        <span style="font-size:13px;color:var(--muted)" id="accountSummary"></span>
+        <span class="text-xs text-muted" id="accountSummary"></span>
       </div>
     </div>
-    <div id="batchBar" style="background:var(--card);border:1px solid var(--blue);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;display:none;align-items:center;justify-content:space-between;">
-      <span style="font-size:13px;">已选 <span id="selectedCount" style="font-weight:700;color:var(--blue);">0</span> 个账号</span>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-sm btn-ghost" onclick="batchExport()" style="border-color:var(--blue);color:var(--blue);">&#128229; 导出</button>
-        <button class="btn btn-sm" onclick="showBatchDeleteConfirm()" style="background:var(--red);color:#fff;">&#128465; 删除</button>
+    <div id="batchBar" class="card-gradient border rounded-xl px-3.5 py-2.5 mb-2.5 hidden items-center justify-between" style="border-color:var(--accent);box-shadow:0 0 12px color-mix(in srgb,var(--accent) 15%,transparent);">
+      <span class="text-xs">已选 <span id="selectedCount" class="font-bold" style="color:var(--accent);">0</span> 个账号</span>
+      <div class="flex gap-2">
+        <button class="btn-hover text-xs px-2.5 py-1 rounded bg-transparent border border-border text-text cursor-pointer" onclick="batchExport()" style="border-color:var(--accent);color:var(--accent);"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-download"/></svg>导出</button>
+        <button class="btn-hover text-xs px-2.5 py-1 rounded text-white cursor-pointer" onclick="showBatchDeleteConfirm()" style="background:var(--red);border:none;box-shadow:0 2px 8px color-mix(in srgb,var(--red) 30%,transparent);"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-trash"/></svg>删除</button>
       </div>
     </div>
-    
-    <div id="filterBar" class="filter-bar" style="display:none;">
-      <div class="filter-row">
-        <select id="filterStatus" onchange="applyFilter()">
+    <div id="filterBar" class="card-gradient border border-border rounded-xl px-3.5 py-2.5 mb-2.5" style="box-shadow:var(--shadow-sm);display:none;">
+      <div class="flex gap-2 items-center flex-wrap">
+        <select id="filterStatus" onchange="applyFilter()" class="bg-bg border border-border rounded-md px-2 py-1 text-xs text-text outline-none focus:border-accent">
           <option value="">全部状态</option>
           <option value="healthy">正常</option>
           <option value="cooldown">冷却中</option>
           <option value="degraded">异常</option>
           <option value="pending">待初始化</option>
         </select>
-        <select id="filterSub" onchange="applyFilter()">
+        <select id="filterSub" onchange="applyFilter()" class="bg-bg border border-border rounded-md px-2 py-1 text-xs text-text outline-none focus:border-accent">
           <option value="">全部订阅</option>
           <option value="Free">Free</option>
           <option value="KIRO FREE">KIRO FREE</option>
         </select>
-        <input type="text" id="filterDomain" placeholder="邮箱域名 (outlook.de)" oninput="applyFilter()" style="width:130px;">
-        <label><input type="checkbox" id="filterHasModels" onchange="applyFilter()"> 有模型</label>
-        <label>额度 <input type="range" id="filterUsage" min="0" max="100" value="0" oninput="applyFilter();$('filterUsageLabel').textContent=this.value+'%'"> <span id="filterUsageLabel">0%</span></label>
-        <button class="filter-btn" onclick="quickFilter('healthy')">正常</button>
-        <button class="filter-btn" onclick="quickFilter('degraded')">异常</button>
-        <button class="filter-btn" onclick="quickFilter('nomodels')">无模型</button>
-        <button class="filter-btn" onclick="resetFilter()" style="color:var(--red);">↺ 重置</button>
-        <span class="filter-count" id="filterCount"></span>
+        <input type="text" id="filterDomain" placeholder="邮箱域名 (outlook.de)" oninput="applyFilter()" class="bg-bg border border-border rounded-md px-2 py-1 text-xs text-text outline-none focus:border-accent" style="width:130px;">
+        <label class="text-xs text-muted flex items-center gap-1"><input type="checkbox" id="filterHasModels" onchange="applyFilter()" style="accent-color:var(--accent);"> 有模型</label>
+        <label class="text-xs text-muted flex items-center gap-1">额度 <input type="range" id="filterUsage" min="0" max="100" value="0" oninput="applyFilter();$('filterUsageLabel').textContent=this.value+'%'" style="width:70px;accent-color:var(--accent);"> <span id="filterUsageLabel">0%</span></label>
+        <button class="filter-btn bg-bg border border-border rounded-full px-2.5 py-0.5 text-xs text-muted cursor-pointer hover:border-accent hover:text-text" onclick="quickFilter('healthy')">正常</button>
+        <button class="filter-btn bg-bg border border-border rounded-full px-2.5 py-0.5 text-xs text-muted cursor-pointer hover:border-accent hover:text-text" onclick="quickFilter('degraded')">异常</button>
+        <button class="filter-btn bg-bg border border-border rounded-full px-2.5 py-0.5 text-xs text-muted cursor-pointer hover:border-accent hover:text-text" onclick="quickFilter('nomodels')">无模型</button>
+        <button class="filter-btn bg-bg border border-border rounded-full px-2.5 py-0.5 text-xs cursor-pointer" onclick="resetFilter()" style="color:var(--red);">↺ 重置</button>
+        <span class="filter-count text-xs text-muted ml-auto" id="filterCount"></span>
       </div>
     </div>
-<div class="accounts-grid" id="accountsGrid"></div>
-    <div class="section-header">
-      <h2>&#129302; 可用模型</h2>
-      <span style="font-size:13px;color:var(--muted)" id="modelCount"></span>
+    <div class="accounts-grid grid gap-2.5 mb-5" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr));" id="accountsGrid"></div>
+    <div class="flex justify-between items-center my-4">
+      <h2 class="text-sm font-semibold"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-cpu"/></svg>可用模型</h2>
+      <span class="text-xs text-muted" id="modelCount"></span>
     </div>
-    <div class="models-section" id="modelsSection"></div>
-    <div class="last-update" id="lastUpdate"></div>
+    <div class="card-gradient border border-border rounded-xl p-3.5 mb-5" style="box-shadow:var(--shadow-sm);" id="modelsSection"></div>
+    <div class="text-xs text-muted text-center mt-4" id="lastUpdate"></div>
   </div>
 
   <!-- Page: Settings -->
-  <div class="page" id="page-settings">
-    <h2 style="font-size:18px;font-weight:600;margin-bottom:16px;">&#9881; 设置</h2>
-
-    <!-- API Key 管理 -->
-    <div class="settings-section">
-      <h3>API Key 管理</h3>
-
-      <div class="settings-row">
-        <div style="width:100%;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-            <span class="settings-label">Admin API Key</span>
-            <div class="key-display" style="flex:1;margin:0 12px;">
-              <span class="key-text" id="adminKeyDisplay">-</span>
+  <div class="page p-5 flex-1" id="page-settings">
+    <h2 class="text-lg font-semibold mb-4"><svg class="ic ic-md" style="margin-right:4px"><use href="#i-settings"/></svg>设置</h2>
+    <!-- Theme Picker -->
+    <div class="card-gradient border border-border rounded-xl p-5 mb-4" style="box-shadow:var(--shadow-sm);">
+      <h3 class="text-sm font-semibold mb-3 pb-2.5 border-b border-border"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-palette"/></svg>外观主题</h3>
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));" id="themePickerGrid"></div>
+    </div>
+    <!-- API Key -->
+    <div class="card-gradient border border-border rounded-xl p-5 mb-4" style="box-shadow:var(--shadow-sm);">
+      <h3 class="text-sm font-semibold mb-3.5 pb-2.5 border-b border-border">API Key 管理</h3>
+      <div class="py-2.5 border-b border-border/50">
+        <div class="w-full">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <span class="text-xs text-muted" style="min-width:120px;">Admin API Key</span>
+            <div class="flex items-center gap-2 rounded-md px-3 py-2 font-mono text-xs flex-1" style="background:var(--input-bg);border:1px solid var(--border);margin:0 12px;">
+              <span class="key-text flex-1 break-all" id="adminKeyDisplay">-</span>
             </div>
-            <div class="settings-actions">
-              <button class="btn btn-sm btn-ghost" onclick="copyAdminKey()" title="Copy">&#128203;</button>
-              <button class="btn btn-sm btn-ghost" onclick="refreshAdminKey()" title="Refresh">&#128260;</button>
+            <div class="flex gap-1.5">
+              <button class="btn-hover text-xs px-2.5 py-1 rounded bg-transparent border border-border text-text cursor-pointer" onclick="copyAdminKey()" title="Copy"><svg class="ic ic-sm"><use href="#i-copy"/></svg></button>
+              <button class="btn-hover text-xs px-2.5 py-1 rounded bg-transparent border border-border text-text cursor-pointer" onclick="refreshAdminKey()" title="Refresh"><svg class="ic ic-sm"><use href="#i-refresh"/></svg></button>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">用于后台管理面板的所有请求（账号管理、导入导出、系统设置）。请求头格式：<code>Authorization: Bearer &lt;key&gt;</code></div>
+          <div class="text-xs text-muted mt-1">用于后台管理面板的所有请求（账号管理、导入导出、系统设置）。请求头格式：<code>Authorization: Bearer &lt;key&gt;</code></div>
         </div>
       </div>
-
-      <div class="settings-row">
-        <div style="width:100%;">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-            <span class="settings-label">Proxy API Key</span>
-            <div class="key-display" style="flex:1;margin:0 12px;">
-              <span class="key-text" id="proxyApiKeyDisplay">-</span>
+      <div class="py-2.5">
+        <div class="w-full">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <span class="text-xs text-muted" style="min-width:120px;">Proxy API Key</span>
+            <div class="flex items-center gap-2 rounded-md px-3 py-2 font-mono text-xs flex-1" style="background:var(--input-bg);border:1px solid var(--border);margin:0 12px;">
+              <span class="key-text flex-1 break-all" id="proxyApiKeyDisplay">-</span>
             </div>
-            <div class="settings-actions">
-              <button class="btn btn-sm btn-ghost" onclick="copyProxyApiKey()" title="复制">&#128203;</button>
+            <div class="flex gap-1.5">
+              <button class="btn-hover text-xs px-2.5 py-1 rounded bg-transparent border border-border text-text cursor-pointer" onclick="copyProxyApiKey()" title="复制"><svg class="ic ic-sm"><use href="#i-copy"/></svg></button>
             </div>
           </div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;">用于外部客户端（Cursor、VS Code 等）访问 Kiro API 代理。启动网关时通过 <code>PROXY_API_KEY</code> 环境变量设置。</div>
+          <div class="text-xs text-muted mt-1">用于外部客户端（Cursor、VS Code 等）访问 Kiro API 代理。启动网关时通过 <code>PROXY_API_KEY</code> 环境变量设置。</div>
         </div>
       </div>
     </div>
-
-    <!-- 代理设置 -->
-    <div class="settings-section">
-      <h3>代理设置</h3>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">设置 Kiro API 的出站代理（HTTP/SOCKS）</div>
-      <div class="proxy-input-row">
-        <input id="proxyUrlInput" placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080">
-        <button class="btn btn-primary" onclick="saveProxy()">保存</button>
-        <button class="btn btn-ghost" onclick="clearProxy()">清除</button>
+    <!-- Proxy Settings -->
+    <div class="card-gradient border border-border rounded-xl p-5 mb-4" style="box-shadow:var(--shadow-sm);">
+      <h3 class="text-sm font-semibold mb-3.5 pb-2.5 border-b border-border">代理设置</h3>
+      <div class="text-xs text-muted mb-3">设置 Kiro API 的出站代理（HTTP/SOCKS）</div>
+      <div class="flex gap-2 items-center">
+        <input id="proxyUrlInput" placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080" class="flex-1 px-2.5 py-2 rounded-md text-xs outline-none font-mono" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+        <button class="btn-primary btn-hover text-white px-3.5 py-1.5 rounded-md cursor-pointer text-xs border-none" style="background:var(--accent);" onclick="saveProxy()">保存</button>
+        <button class="btn-hover bg-transparent border border-border text-text px-3.5 py-1.5 rounded-md cursor-pointer text-xs" onclick="clearProxy()">清除</button>
       </div>
-      <div id="proxyStatus" style="margin-top:8px;font-size:12px;display:none;"></div>
+      <div id="proxyStatus" class="mt-2 text-xs hidden"></div>
     </div>
-
-    <div style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">修改 Admin API Key 后页面会自动使用新 Key，无需重新登录。</div>
+    <div class="text-xs text-muted text-center py-4">修改 Admin API Key 后页面会自动使用新 Key，无需重新登录。</div>
   </div>
 
   <!-- Page: Console -->
-  <div class="page" id="page-console">
-    <style>
-      .cnsl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
-      .cnsl-header h2{font-size:18px;font-weight:600;}
-      .cnsl-scale{display:flex;gap:4px;}
-      .cnsl-scale .sbtn{padding:4px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);}
-      .cnsl-scale .sbtn:hover{border-color:var(--blue);color:var(--text);}
-      .cnsl-scale .sbtn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
-      .cnsl-chart-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;}
-      .cnsl-chart-title{font-size:13px;font-weight:500;margin-bottom:12px;color:var(--muted);}
-      .cnsl-bars{display:flex;align-items:flex-end;gap:3px;height:160px;}
-      .cnsl-bar{flex:1;min-width:8px;border-radius:3px 3px 0 0;position:relative;cursor:pointer;}
-      .cnsl-bar .tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11px;white-space:nowrap;z-index:10;margin-bottom:4px;pointer-events:none;}
-      .cnsl-bar:hover .tip{display:block;}
-      .cnsl-xlabels{display:flex;margin-top:6px;}
-      .cnsl-xlabels span{flex:1;text-align:center;font-size:10px;color:var(--muted);}
-      .cnsl-totals{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
-      .cnsl-total-item{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;flex:1;min-width:120px;}
-      .cnsl-total-item .lbl{font-size:11px;color:var(--muted);}
-      .cnsl-total-item .val{font-size:20px;font-weight:700;margin-top:2px;}
-      .cnsl-logs-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);}
-      .cnsl-logs-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);}
-      .cnsl-logs-header h3{font-size:14px;font-weight:600;}
-      .cnsl-logs-ctrl{display:flex;gap:6px;align-items:center;}
-      .cnsl-logs-ctrl .logbtn{padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);}
-      .cnsl-logs-ctrl .logbtn:hover{border-color:var(--blue);color:var(--text);}
-      .cnsl-logs-ctrl .logbtn.active{background:var(--green);color:#fff;border-color:var(--green);}
-      .cnsl-log-count{font-size:11px;color:var(--muted);}
-      .cnsl-log-table{width:100%;border-collapse:collapse;font-size:12px;}
-      .cnsl-log-table th{text-align:left;padding:8px 12px;font-weight:500;color:var(--muted);border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap;}
-      .cnsl-log-table td{padding:8px 12px;border-bottom:1px solid rgba(42,45,62,.3);vertical-align:top;}
-      .cnsl-log-table tr:hover td{background:rgba(255,255,255,.02);}
-      .cnsl-log-table .log-detail{font-size:11px;color:var(--muted);line-height:1.4;max-height:0;overflow:hidden;transition:max-height .25s;padding:0 12px;}
-      .cnsl-log-table tr.expanded .log-detail{max-height:300px;padding:8px 12px;}
-      .cnsl-log-table .log-body{white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:10px;max-height:100px;overflow-y:auto;background:rgba(0,0,0,.2);border-radius:4px;padding:4px 6px;margin-top:4px;}
-      .cnsl-status-ok{color:var(--green);font-weight:600;}
-      .cnsl-status-fail{color:var(--red);font-weight:600;}
-      .cnsl-status-proc{color:var(--yellow);font-weight:600;}
-      .cnsl-col-url{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    </style>
-    <div class="cnsl-header">
-      <h2>&#128200; 请求控制台</h2>
-      <div class="cnsl-scale">
-        <span class="sbtn active" data-scale="day" onclick="switchConsoleScale('day',this)">小时</span>
-        <span class="sbtn" data-scale="week" onclick="switchConsoleScale('week',this)">天</span>
-        <span class="sbtn" data-scale="month" onclick="switchConsoleScale('month',this)">周</span>
+  <div class="page p-5 flex-1" id="page-console">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold"><svg class="ic ic-md" style="margin-right:4px"><use href="#i-console"/></svg>请求控制台</h2>
+      <div class="cnsl-scale flex gap-1">
+        <span class="sbtn active px-3.5 py-1 rounded-md text-xs cursor-pointer border border-border bg-transparent text-muted" data-scale="day" onclick="switchConsoleScale('day',this)">小时</span>
+        <span class="sbtn px-3.5 py-1 rounded-md text-xs cursor-pointer border border-border bg-transparent text-muted" data-scale="week" onclick="switchConsoleScale('week',this)">天</span>
+        <span class="sbtn px-3.5 py-1 rounded-md text-xs cursor-pointer border border-border bg-transparent text-muted" data-scale="month" onclick="switchConsoleScale('month',this)">周</span>
       </div>
     </div>
-    <div class="cnsl-totals" id="cnslTotals"></div>
-    <div class="cnsl-chart-wrap">
-      <div class="cnsl-chart-title">请求数</div>
-      <div class="cnsl-bars" id="cnslBars"></div>
-      <div class="cnsl-xlabels" id="cnslXLabels"></div>
+    <div class="cnsl-totals flex gap-4 mb-4 flex-wrap" id="cnslTotals"></div>
+    <div class="card-gradient border border-border rounded-xl p-5 mb-4" style="box-shadow:var(--shadow-sm);">
+      <div class="text-xs font-medium mb-3 text-muted">请求数</div>
+      <div class="cnsl-bars flex items-end gap-[3px]" style="height:160px;" id="cnslBars"></div>
+      <div class="cnsl-xlabels flex mt-1.5" id="cnslXLabels"></div>
     </div>
-    <div class="cnsl-logs-section">
-      <div class="cnsl-logs-header">
-        <h3>&#128214; 实时光日志</h3>
-        <div class="cnsl-logs-ctrl">
-          <span class="cnsl-log-count" id="cnslLogCount"></span>
-          <span class="logbtn" onclick="clearConsoleLogs()">&#128465; 清空</span>
-          <span class="logbtn active" id="cnslAutoBtn" onclick="toggleConsoleAuto()">&#9654; 自动</span>
+    <div class="card-gradient border border-border rounded-xl" style="box-shadow:var(--shadow);">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h3 class="text-sm font-semibold"><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-doc"/></svg>实时光日志</h3>
+        <div class="flex gap-1.5 items-center">
+          <span class="text-xs text-muted" id="cnslLogCount"></span>
+          <span class="logbtn px-2.5 py-1 rounded text-xs cursor-pointer border border-border bg-transparent text-muted" onclick="clearConsoleLogs()"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-trash"/></svg>清空</span>
+          <span class="logbtn active px-2.5 py-1 rounded text-xs cursor-pointer border text-white" id="cnslAutoBtn" onclick="toggleConsoleAuto()" style="background:var(--green);border-color:var(--green);"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-play"/></svg>自动</span>
         </div>
       </div>
-      <table class="cnsl-log-table" id="cnslLogTable">
+      <table class="w-full border-collapse text-xs" id="cnslLogTable">
         <thead><tr>
-          <th style="width:60px;">时间</th>
-          <th>模型</th>
-          <th>状态</th>
-          <th class="cnsl-col-url">URL</th>
-          <th style="width:50px;">延时</th>
-          <th style="width:40px;"></th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs whitespace-nowrap" style="width:60px;">时间</th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs">模型</th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs">状态</th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs cnsl-col-url" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">URL</th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs" style="width:50px;">延时</th>
+          <th class="text-left px-3 py-2 font-medium text-muted border-b border-border text-xs" style="width:40px;"></th>
         </tr></thead>
         <tbody id="cnslLogBody"></tbody>
       </table>
@@ -465,86 +367,75 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 
   <!-- Page: Playground -->
-  <div class="page" id="page-playground">
-    <div class="pg-layout">
-      <!-- Left Sidebar -->
-      <div class="pg-sidebar">
-        <!-- Settings Panel -->
+  <div class="page flex-1" id="page-playground" style="padding:0;height:calc(100vh - 52px);">
+    <div class="pg-layout flex h-full">
+      <div class="pg-sidebar sidebar-bg flex flex-col overflow-hidden border-r border-border" style="width:280px;min-width:280px;">
         <div class="pg-settings-panel">
-          <div class="pg-section-header" id="pgSettingsHeader" onclick="togglePgSettings()">
-            <span>&#9881; 请求设置</span>
-            <span class="pg-toggle" id="pgSettingsToggle">&#9660;</span>
+          <div class="pg-section-header flex justify-between items-center px-3.5 py-2.5 cursor-pointer text-xs font-semibold text-muted uppercase tracking-wide select-none hover:bg-white/3" id="pgSettingsHeader" onclick="togglePgSettings()">
+            <span><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-settings"/></svg>请求设置</span>
+            <span class="pg-toggle text-xs transition-transform" id="pgSettingsToggle"><svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></span>
           </div>
-          <div class="pg-settings-body" id="pgSettingsBody">
-            <label>API URL</label>
-            <input id="pgUrl" value="http://124.220.13.249/v1/chat/completions" spellcheck="false">
-
-            <label>API Key</label>
-            <div class="pg-key-row">
-              <input id="pgKey" type="password" value="kiro-gateway-2026" spellcheck="false">
-              <button class="pg-eye-btn" onclick="togglePgKey()" title="显示/隐藏 Key">&#128065;</button>
+          <div class="pg-settings-body px-3.5 pb-3.5 border-b border-border" id="pgSettingsBody">
+            <label class="block text-xs text-muted mt-2 mb-1">API URL</label>
+            <input id="pgUrl" value="http://124.220.13.249/v1/chat/completions" spellcheck="false" class="w-full px-2.5 py-1.5 rounded-md text-xs outline-none font-mono" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+            <label class="block text-xs text-muted mt-2 mb-1">API Key</label>
+            <div class="pg-key-row flex gap-1">
+              <input id="pgKey" type="password" value="kiro-gateway-2026" spellcheck="false" class="flex-1 px-2.5 py-1.5 rounded-md text-xs outline-none font-mono" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+              <button class="pg-eye-btn bg-transparent border border-border text-muted px-2 py-1 rounded-md cursor-pointer text-sm leading-none hover:bg-white/8 hover:text-text" onclick="togglePgKey()" title="显示/隐藏 Key"><svg class="ic ic-sm"><use href="#i-eye"/></svg></button>
             </div>
-
-            <label>模型</label>
-            <select id="pgModel"></select>
-
-            <label>System Prompt（可选）</label>
-            <textarea class="pg-system-prompt" id="pgSystemPrompt" placeholder="设置系统提示词..."></textarea>
+            <label class="block text-xs text-muted mt-2 mb-1">模型</label>
+            <select id="pgModel" class="w-full px-2.5 py-1.5 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);"></select>
+            <label class="block text-xs text-muted mt-2 mb-1">System Prompt（可选）</label>
+            <textarea class="pg-system-prompt w-full px-2.5 py-1.5 rounded-md text-xs outline-none resize-y" id="pgSystemPrompt" placeholder="设置系统提示词..." style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);min-height:36px;max-height:80px;font-family:inherit;"></textarea>
           </div>
         </div>
-
-        <!-- Curl Examples -->
-        <div class="pg-curl-section">
-          <div class="pg-section-header" id="pgCurlHeader" onclick="togglePgCurl()">
-            <span>&#128279; API 调用示例</span>
-            <span class="pg-toggle" id="pgCurlToggle">&#9660;</span>
+        <div class="pg-curl-section border-t border-border">
+          <div class="pg-section-header flex justify-between items-center px-3.5 py-2.5 cursor-pointer text-xs font-semibold text-muted uppercase tracking-wide select-none hover:bg-white/3" id="pgCurlHeader" onclick="togglePgCurl()">
+            <span><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-link"/></svg>API 调用示例</span>
+            <span class="pg-toggle text-xs transition-transform" id="pgCurlToggle"><svg class="ic ic-sm"><use href="#i-chevron-down"/></svg></span>
           </div>
-          <div class="pg-curl-body" id="pgCurlBody">
-            <div class="pg-curl-tabs">
-              <span class="pg-curl-tab active" onclick="switchCurlTab('chat',this)">对话</span>
-              <span class="pg-curl-tab" onclick="switchCurlTab('models',this)">模型列表</span>
-              <span class="pg-curl-tab" onclick="switchCurlTab('stream',this)">流式</span>
+          <div class="pg-curl-body px-3.5 pb-3.5 text-xs" id="pgCurlBody">
+            <div class="pg-curl-tabs flex gap-1 mb-2">
+              <span class="pg-curl-tab active px-2.5 py-1 rounded cursor-pointer text-xs bg-transparent border border-border text-muted" onclick="switchCurlTab('chat',this)">对话</span>
+              <span class="pg-curl-tab px-2.5 py-1 rounded cursor-pointer text-xs bg-transparent border border-border text-muted" onclick="switchCurlTab('models',this)">模型列表</span>
+              <span class="pg-curl-tab px-2.5 py-1 rounded cursor-pointer text-xs bg-transparent border border-border text-muted" onclick="switchCurlTab('stream',this)">流式</span>
             </div>
-            <pre id="pgCurlCode">curl -X POST "http://124.220.13.249/v1/chat/completions" \
+            <pre class="rounded-md overflow-x-auto text-xs p-2.5 mt-1.5 border border-border" style="background:var(--input-bg);color:var(--green);line-height:1.5;font-family:'Courier New',monospace;" id="pgCurlCode">curl -X POST "http://124.220.13.249/v1/chat/completions" \
   -H "Authorization: Bearer kiro-gateway-2026" \
   -H "Content-Type: application/json" \
   -d '{"model":"auto-kiro","messages":[{"role":"user","content":"Hello!"}]}'</pre>
-            <button class="pg-copy-btn" onclick="copyPgCurl()">&#128203; 复制</button>
-            <div style="font-size:10px;color:var(--muted);margin-top:6px;">
+            <button class="pg-copy-btn text-xs text-muted cursor-pointer bg-transparent border border-border rounded px-2 py-0.5 mt-1.5 hover:text-text hover:border-muted" onclick="copyPgCurl()"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-copy"/></svg>复制</button>
+            <div class="text-xs text-muted mt-1.5">
               <b>models</b>: auto-kiro, claude-sonnet-4.6, claude-opus-4.7, gpt-5, ...<br>
               <b>参数</b>: temperature, max_tokens, top_p 均为可选<br>
               <b>响应</b>: OpenAI 兼容格式 (choices[0].message.content)
             </div>
           </div>
         </div>
-
-        <!-- Chat History -->
-        <div class="pg-section-header" style="border-bottom:1px solid var(--border);cursor:default;">
-          <span>&#128172; 对话历史</span>
-          <button class="pg-copy-btn" onclick="newPgChat()" title="新建对话" style="font-size:16px;padding:2px 6px;">+</button>
+        <div class="pg-section-header flex justify-between items-center px-3.5 py-2.5 border-b border-border cursor-default text-xs font-semibold text-muted uppercase tracking-wide select-none">
+          <span><svg class="ic ic-sm" style="margin-right:4px"><use href="#i-playground"/></svg>对话历史</span>
+          <button class="pg-copy-btn text-muted cursor-pointer bg-transparent border border-border rounded hover:text-text hover:border-muted" onclick="newPgChat()" title="新建对话" style="font-size:16px;padding:2px 6px;">+</button>
         </div>
-        <div class="pg-history-list" id="pgHistoryList">
-          <div style="padding:20px;text-align:center;font-size:12px;color:var(--muted);">暂无历史记录</div>
+        <div class="pg-history-list flex-1 overflow-y-auto" id="pgHistoryList">
+          <div class="p-5 text-center text-xs text-muted">暂无历史记录</div>
         </div>
       </div>
-
-      <!-- Chat Area -->
-      <div class="pg-chat">
-        <div id="pgMessages">
-          <div class="pg-empty">
-            <div class="pg-empty-icon">&#128172;</div>
-            <div style="font-size:15px;font-weight:500;margin-bottom:4px;">Kiro API 调试</div>
-            <div style="font-size:12px;color:var(--muted);">选择一个模型，开始对话</div>
+      <div class="pg-chat flex-1 flex flex-col bg-bg min-w-0">
+        <div id="pgMessages" class="flex-1 overflow-y-auto p-5">
+          <div class="pg-empty flex flex-col items-center justify-center h-full text-muted select-none">
+            <div class="mb-3 opacity-50"><svg class="ic ic-xl"><use href="#i-playground"/></svg></div>
+            <div class="text-sm font-medium mb-1" style="color:var(--text);">Kiro API 调试</div>
+            <div class="text-xs">选择一个模型，开始对话</div>
           </div>
         </div>
-        <div class="pg-input-options">
-          <span class="pg-option-chip active" id="pgChipStream" onclick="togglePgStream()">&#9878; 流式</span>
-          <span class="pg-option-chip" id="pgChipReasoning" onclick="togglePgReasoning()">&#128161; 推理</span>
+        <div class="pg-input-options flex gap-1.5 px-4 pt-1">
+          <span class="pg-option-chip active text-xs px-2 py-1 rounded-full cursor-pointer select-none" id="pgChipStream" onclick="togglePgStream()" style="background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid var(--accent);color:var(--accent);"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-stream"/></svg>流式</span>
+          <span class="pg-option-chip text-xs px-2 py-1 rounded-full cursor-pointer select-none" id="pgChipReasoning" onclick="togglePgReasoning()" style="background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--muted);"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-bulb"/></svg>推理</span>
         </div>
-        <div class="pg-input-row">
-          <textarea id="pgInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1" onkeydown="pgInputKeydown(event)"></textarea>
-          <button class="pg-send-btn" id="pgSendBtn" onclick="sendPgMessage()">&#10148; 发送</button>
-          <button class="pg-stop-btn" id="pgStopBtn" onclick="stopPgStream()">&#9632; 停止</button>
+        <div class="pg-input-row flex gap-2 p-3 border-t border-border items-end" style="background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--card) 50%,transparent));">
+          <textarea id="pgInput" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" rows="1" onkeydown="pgInputKeydown(event)" class="flex-1 px-3.5 py-2.5 rounded-lg text-xs outline-none resize-none leading-relaxed" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);font-family:inherit;max-height:120px;transition:all .15s;" onfocus="this.style.borderColor='var(--accent)';this.style.boxShadow='0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent)'" onblur="this.style.borderColor='var(--border)';this.style.boxShadow='none'"></textarea>
+          <button class="pg-send-btn btn-hover text-white rounded-lg cursor-pointer text-xs font-medium whitespace-nowrap" id="pgSendBtn" onclick="sendPgMessage()" style="background:var(--accent);height:38px;min-width:60px;padding:8px 16px;border:none;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 30%,transparent);"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-send"/></svg>发送</button>
+          <button class="pg-stop-btn btn-hover text-white rounded-lg cursor-pointer text-xs font-medium whitespace-nowrap" id="pgStopBtn" onclick="stopPgStream()" style="background:var(--red);height:38px;padding:8px 16px;border:none;display:none;box-shadow:0 2px 8px color-mix(in srgb,var(--red) 30%,transparent);"><svg class="ic ic-sm" style="margin-right:3px"><use href="#i-stop"/></svg>停止</button>
         </div>
       </div>
     </div>
@@ -554,1400 +445,700 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div><!-- /app-layout -->
 
 <!-- Import JSON Modal -->
-<div class="modal-overlay" id="importModal">
-  <div class="modal-box">
-    <h3>导入 JSON 账号</h3>
+<div class="modal-overlay fixed inset-0 z-[100] items-center justify-center" style="background:rgba(0,0,0,.6);" id="importModal">
+  <div class="card-gradient border border-border rounded-xl p-5 w-[480px] max-w-[94vw] max-h-[90vh] overflow-y-auto" style="box-shadow:var(--shadow);">
+    <h3 class="text-base mb-3.5">导入 JSON 账号</h3>
     <div id="importPreview">
-      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--muted);">已选择文件</div>
-        <div style="font-size:14px;font-weight:600;" id="importFileName">-</div>
+      <div class="py-2.5 border-b border-border mb-2.5">
+        <div class="text-xs text-muted">已选择文件</div>
+        <div class="text-sm font-semibold" id="importFileName">-</div>
       </div>
-      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
-        <div style="font-size:12px;color:var(--muted);">找到账号</div>
-        <div style="font-size:22px;font-weight:700;" id="importCount">0</div>
-      </div>
-    </div>
-    <div id="importProgress" style="display:none;">
-      <div style="padding:10px 0;">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;" id="importStatusText">正在导入...</div>
-        <div style="height:6px;background:#2a2d3e;border-radius:3px;overflow:hidden;">
-          <div id="importProgressBar" style="height:100%;width:0%;background:var(--blue);border-radius:3px;transition:width .3s;"></div>
-        </div>
+      <div class="py-2.5 border-b border-border mb-2.5">
+        <div class="text-xs text-muted">找到账号</div>
+        <div class="text-xl font-bold" id="importCount">0</div>
       </div>
     </div>
-    <div id="importResult" style="display:none;">
-      <div style="padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:10px;">
-        <div style="display:flex;gap:12px;">
-          <div style="flex:1;text-align:center;padding:8px;background:rgba(34,197,94,.08);border-radius:6px;">
-            <div style="font-size:18px;font-weight:700;color:var(--green);" id="importSuccessCount">0</div>
-            <div style="font-size:11px;color:var(--muted);">成功</div>
+    <div id="importProgress" class="hidden py-2.5">
+      <div class="text-xs text-muted mb-1.5" id="importStatusText">正在导入...</div>
+      <div class="rounded-full overflow-hidden" style="height:6px;background:var(--border);">
+        <div id="importProgressBar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width .3s;"></div>
+      </div>
+    </div>
+    <div id="importResult" class="hidden">
+      <div class="py-2.5 border-b border-border mb-2.5">
+        <div class="flex gap-3">
+          <div class="flex-1 text-center py-2 rounded-md green-soft">
+            <div class="text-lg font-bold" style="color:var(--green);" id="importSuccessCount">0</div>
+            <div class="text-xs text-muted">成功</div>
           </div>
-          <div style="flex:1;text-align:center;padding:8px;background:rgba(239,68,68,.08);border-radius:6px;">
-            <div style="font-size:18px;font-weight:700;color:var(--red);" id="importFailCount">0</div>
-            <div style="font-size:11px;color:var(--muted);">失败</div>
+          <div class="flex-1 text-center py-2 rounded-md red-soft">
+            <div class="text-lg font-bold" style="color:var(--red);" id="importFailCount">0</div>
+            <div class="text-xs text-muted">失败</div>
           </div>
         </div>
       </div>
-      <div id="importDetails" style="max-height:180px;overflow-y:auto;font-size:12px;"></div>
+      <div id="importDetails" class="max-h-[180px] overflow-y-auto text-xs"></div>
     </div>
-    <div id="importError" class="modal-msg"></div>
-    <div class="btn-row" id="importBtnRow">
-      <button class="btn-cancel" onclick="closeImportModal()" id="importCancelBtn">取消</button>
-      <button class="btn-primary" onclick="startJsonImport()" id="importStartBtn">开始导入</button>
+    <div id="importError" class="modal-msg mt-2.5 px-3 py-2 rounded-md text-xs hidden"></div>
+    <div class="btn-row flex gap-2.5 justify-end mt-4" id="importBtnRow">
+      <button class="btn-hover px-3.5 py-1.5 rounded-md text-xs cursor-pointer" style="background:var(--border);color:var(--text);border:none;" onclick="closeImportModal()" id="importCancelBtn">取消</button>
+      <button class="btn-hover px-3.5 py-1.5 rounded-md text-xs text-white cursor-pointer" style="background:var(--accent);border:none;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 30%,transparent);" onclick="startJsonImport()" id="importStartBtn">开始导入</button>
     </div>
   </div>
 </div>
 
 <!-- Add Account Modal -->
-<div class="modal-overlay" id="addModal">
-  <div class="modal-box">
-    <h3>添加新账号</h3>
-    <label>邮箱 *</label>
-    <input id="f_email" placeholder="user@example.com" oninput="clearMsg()">
-    <label>Client ID *</label>
-    <input id="f_clientId" placeholder="AWS Q Developer Client ID" oninput="clearMsg()">
-    <label>Client Secret *</label>
-    <input id="f_clientSecret" placeholder="JWT secret string" oninput="clearMsg()">
-    <label>Refresh Token *</label>
-    <input id="f_refreshToken" placeholder="Refresh token (aor...)" oninput="clearMsg()">
-    <label>区域</label>
-    <select id="f_region">
+<div class="modal-overlay fixed inset-0 z-[100] items-center justify-center" style="background:rgba(0,0,0,.6);" id="addModal">
+  <div class="card-gradient border border-border rounded-xl p-5 w-[480px] max-w-[94vw] max-h-[90vh] overflow-y-auto" style="box-shadow:var(--shadow);">
+    <h3 class="text-base mb-3.5">添加新账号</h3>
+    <label class="block text-xs text-muted mt-2.5 mb-1">邮箱 *</label>
+    <input id="f_email" placeholder="user@example.com" oninput="clearMsg()" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+    <label class="block text-xs text-muted mt-2.5 mb-1">Client ID *</label>
+    <input id="f_clientId" placeholder="AWS Q Developer Client ID" oninput="clearMsg()" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+    <label class="block text-xs text-muted mt-2.5 mb-1">Client Secret *</label>
+    <input id="f_clientSecret" placeholder="JWT secret string" oninput="clearMsg()" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+    <label class="block text-xs text-muted mt-2.5 mb-1">Refresh Token *</label>
+    <input id="f_refreshToken" placeholder="Refresh token (aor...)" oninput="clearMsg()" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+    <label class="block text-xs text-muted mt-2.5 mb-1">区域</label>
+    <select id="f_region" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
       <option value="us-east-1">us-east-1</option>
       <option value="us-west-2">us-west-2</option>
       <option value="eu-central-1">eu-central-1</option>
       <option value="ap-northeast-1">ap-northeast-1</option>
     </select>
-    <label>Provider</label>
-    <input id="f_provider" value="BuilderId" placeholder="BuilderId">
-    <div class="modal-msg" id="modalMsg"></div>
-    <div class="btn-row">
-      <button class="btn-cancel" onclick="closeAddModal()">取消</button>
-      <button class="btn-primary" id="btnSubmit" onclick="addAccount()">添加并初始化</button>
+    <label class="block text-xs text-muted mt-2.5 mb-1">Provider</label>
+    <input id="f_provider" value="BuilderId" placeholder="BuilderId" class="w-full px-2.5 py-2 rounded-md text-xs outline-none" style="background:var(--input-bg);border:1px solid var(--border);color:var(--text);">
+    <div class="modal-msg mt-2.5 px-3 py-2 rounded-md text-xs hidden" id="modalMsg"></div>
+    <div class="btn-row flex gap-2.5 justify-end mt-4">
+      <button class="btn-hover px-3.5 py-1.5 rounded-md text-xs cursor-pointer" style="background:var(--border);color:var(--text);border:none;" onclick="closeAddModal()">取消</button>
+      <button class="btn-hover px-3.5 py-1.5 rounded-md text-xs text-white cursor-pointer" id="btnSubmit" onclick="addAccount()" style="background:var(--accent);border:none;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 30%,transparent);">添加并初始化</button>
     </div>
   </div>
 </div>
 
 <script>
-const API_KEY = 'kiro-admin-2026';
-let _apiKey = API_KEY;  // Runtime copy, updated on refresh
-const headers = () => ({ 'Authorization': 'Bearer ' + _apiKey });
-const $ = id => document.getElementById(id);
-
-// ---- Sidebar / Page Routing ----
-function toggleSidebar() {
-  $('sidebar').classList.toggle('collapsed');
-}
-
-function switchPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  $('page-' + name).classList.add('active');
-  document.querySelector('.nav-item[data-page="' + name + '"]').classList.add('active');
-  if (name === 'settings') loadSettings();
-  if (name === 'accounts') refresh();
-  // Collapse sidebar on mobile after nav
-  if (window.innerWidth <= 640) $('sidebar').classList.add('collapsed');
-}
-
-// ---- Dashboard ----
-
-// ===== Filter state & functions =====
-let _dashboardData = null;
-
-function applyFilter() {
-  const bar = $('filterBar');
-  if (!_dashboardData) { bar.style.display = 'none'; return; }
-  bar.style.display = '';
-
-  const status = $('filterStatus').value;
-  const sub = $('filterSub').value;
-  const domain = $('filterDomain').value.toLowerCase().trim();
-  const usageMin = parseInt($('filterUsage').value) || 0;
-  const hasModels = $('filterHasModels').checked;
-
-  let visible = 0;
-  _dashboardData.accounts.forEach(function(a) {
-    var card = document.querySelector('.account-card[data-account-id="' + a.id + '"]');
-    if (!card) return;
-
-    var show = true;
-    if (status && a.status !== status) show = false;
-    if (sub && a.subscription !== sub) show = false;
-    if (domain) {
-      var atIdx = (a.email || '').indexOf('@');
-      var dom = atIdx >= 0 ? a.email.substring(atIdx + 1) : '';
-      if (dom.indexOf(domain) === -1) show = false;
-    }
-    if (hasModels && (!Array.isArray(a.models) || a.models.length === 0)) show = false;
-    if (usageMin > 0 && a.creditLimit > 0) {
-      var pct = Math.round(a.creditUsed / a.creditLimit * 100);
-      if (pct < usageMin) show = false;
-    }
-
-    card.style.display = show ? '' : 'none';
-    if (show) visible++;
-  });
-  $('filterCount').textContent = visible + '/' + _dashboardData.accounts.length;
-}
-
-function resetFilter() {
-  $('filterStatus').value = '';
-  $('filterSub').value = '';
-  $('filterDomain').value = '';
-  $('filterHasModels').checked = false;
-  $('filterUsage').value = 0;
-  $('filterUsageLabel').textContent = '0%';
-  // Reset quick filter buttons
-  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
-  applyFilter();
-}
-
-function quickFilter(type) {
-  resetFilter();
-  if (type === 'healthy') {
-    $('filterStatus').value = 'healthy';
-  } else if (type === 'degraded') {
-    $('filterStatus').value = 'degraded';
-  } else if (type === 'nomodels') {
-    $('filterHasModels').checked = true;
-    // Invert the logic for "无模型": show those WITHOUT models
-    // We temporarily override applyFilter behavior:
-    _quickNoModels = true;
-  }
-  applyFilter();
-  // Highlight active button
-  document.querySelectorAll('.filter-btn').forEach(function(b) {
-    b.classList.toggle('active', b.textContent.indexOf(type === 'nomodels' ? '无模型' : (type === 'healthy' ? '正常' : '异常')) >= 0);
-  });
-}
-
-let _quickNoModels = false;
-// Override: patch the hasModels check for "无模型"
-var _origApply = applyFilter;
-applyFilter = function() {
-  _origApply();
-  if (_quickNoModels) {
-    _quickNoModels = false;
-    _dashboardData.accounts.forEach(function(a) {
-      var card = document.querySelector('.account-card[data-account-id="' + a.id + '"]');
-      if (!card) return;
-      var hasM = Array.isArray(a.models) && a.models.length > 0;
-      if (hasM) card.style.display = 'none';
-    });
-    var visible = 0;
-    document.querySelectorAll('.account-card').forEach(function(c) { if (c.style.display !== 'none') visible++; });
-    $('filterCount').textContent = visible + '/' + _dashboardData.accounts.length;
-  }
-};
-
-function refresh() {
-  Promise.all([
-    fetch('/admin/api/dashboard', { headers: headers() }).then(r => r.json()),
-    fetch('/admin/api/models', { headers: headers() }).then(r => r.json())
-  ]).then(([dash, models]) => {
-    renderDashboard(dash);
-    renderModels(models);
-    $('lastUpdate').textContent = '最后更新: ' + new Date().toLocaleTimeString('zh-CN');
-  }).catch(e => {
-    $('lastUpdate').textContent = '刷新失败: ' + e.message;
-    $('statusBadge').textContent = '刷新失败';
-    $('statusBadge').className = 'badge cooldown';
-  });
-}
-
-
-function refreshCredits() {
-  const btn = $('refreshCreditsBtn');
-  btn.disabled = true;
-  btn.textContent = '刷新中...';
-  fetch('/admin/api/accounts/refresh-credits', { method: 'POST', headers: headers() })
-    .then(r => r.json())
-    .then(data => {
-      var msg = '额度刷新完成';
-      if (data.total > 0) {
-        msg += ': ' + (data.ok || 0) + '/' + data.total + ' 成功';
-        if (data.fail) msg += ', ' + data.fail + ' 失败';
-      }
-      toast(msg);
-      refresh();
-    })
-    .catch(e => {
-      toast('刷新额度失败: ' + e.message);
-    })
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = '刷新额度';
-    });
-}
-function checkAliveness() {
-  const btn = $('checkAlivenessBtn');
-  btn.disabled = true;
-  btn.textContent = '测活中...';
-  fetch('/admin/api/accounts/check-aliveness', { method: 'POST', headers: headers() })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success) {
-        const alive = data.alive || 0;
-        const dead = data.dead || 0;
-        toast('测活完成: ' + alive + ' 存活 / ' + dead + ' 失效 (共' + data.total + '个)');
-        // Show details in a modal or just update the dashboard
-        refresh();
-      } else {
-        toast('测活请求失败');
-      }
-    })
-    .catch(e => {
-      toast('测活请求失败: ' + e.message);
-    })
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = '测活';
-    });
-}
-
-function renderDashboard(d) {
-  const gw = d.gateway;
-  const rqs = d.requests;
-  const cr = d.credits;
-
-  // Use healthy_real for top badge (accounts with actual working runtime)
-  const realWorking = gw.accounts_healthy_real || 0;
-  if (realWorking === gw.accounts_total && gw.accounts_total > 0) {
-    $('statusBadge').textContent = '全部正常';
-    $('statusBadge').className = 'badge healthy';
-  } else if (realWorking > 0) {
-    $('statusBadge').textContent = realWorking + '/' + gw.accounts_total + ' 在线';
-    $('statusBadge').className = 'badge healthy';
-  } else if (gw.accounts_degraded > 0) {
-    $('statusBadge').textContent = gw.accounts_degraded + ' 个异常';
-    $('statusBadge').className = 'badge degraded';
-  } else {
-    $('statusBadge').textContent = gw.accounts_failed + ' 个离线';
-    $('statusBadge').className = 'badge cooldown';
-  }
-
-  $('statsRow').innerHTML = [
-    { label: '总账号', value: gw.accounts_total, sub: '正常 ' + gw.accounts_healthy + ' / 异常 ' + gw.accounts_degraded },
-    { label: '请求总数', value: rqs.total, sub: '成功 ' + rqs.success + ' / 失败 ' + rqs.failed },
-    { label: '每日额度', value: cr.remaining + ' / ' + cr.limit, sub: '已用 ' + cr.used },
-    { label: '运行时间', value: formatUptime(gw.uptime), sub: '' },
-  ].map(s => '<div class="stat-card"><div class="label">' + s.label + '</div><div class="value">' + s.value + '</div><div class="sub">' + s.sub + '</div></div>').join('');
-
-  const healthy = d.accounts.filter(a => a.status === 'healthy').length;
-  const degraded = d.accounts.filter(a => a.status === 'degraded' || a.status === 'cooldown').length;
-  $('accountSummary').textContent = healthy + ' 正常 / ' + degraded + ' 异常';
-  _dashboardData = d;
-
-  $('accountsGrid').innerHTML = d.accounts.map((a, idx) => {
-    const sc = a.status === 'healthy' ? 'healthy' : (a.status === 'cooldown' ? 'cooldown' : (a.status === 'pending' ? 'pending' : 'degraded'));
-    const statusMap = { 'healthy': '正常', 'cooldown': '冷却中', 'degraded': '异常', 'pending': '等待初始化' };
-    const sl = statusMap[a.status] || '未知';
-    const cdLeft = a.cooldown_until > Math.floor(Date.now()/1000) ? Math.max(0, Math.floor(a.cooldown_until - Date.now()/1000)) : 0;
-    const bc = a.status === 'healthy' ? '#22c55e' : a.status === 'cooldown' ? '#ef4444' : a.status === 'pending' ? '#8b8fa3' : '#eab308';
-
-    // Show real file data + runtime stats
-    const email = a.email || '-';
-    const sub = a.subscription || '-';
-
-    return '<div class="account-card"' + (d.gateway && d.gateway.current_account_index === idx ? ' sticky' : '') + ' data-account-id="' + a.id + '">'
-      + '<div class="top">'
-      + '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">'
-      + '<input type="checkbox" class="acct-checkbox" data-id="' + a.id + '" onchange="updateBatchBar()">'
-      + '<span class="name">' + email + '</span>' + (d.gateway && d.gateway.current_account_index === idx ? '<span class="sticky-badge"> Sticky</span>' : '')
-      + '</label>'
-      + '<span class="badge ' + sc + '">' + sl + '</span>' + (cdLeft > 0 ? '<span class="cooldown-timer" data-cooldown="' + a.cooldown_until + '"> [' + cdLeft + 's]</span>' : '')
-      + '</div>'
-      + '<div class="card-sub-row">' + sub + '</div>'
-      + '<div class="card-req-stats"><span class="req-ok">OK ' + a.stats.success + '</span><span class="req-fail">FAIL ' + a.stats.failed + '</span></div>'
-      + (a.creditLimit > 0
-        ? '<div class="quota-info"><span>配额: <span class="used">' + a.creditUsed + ' / ' + a.creditLimit + '</span></span><span class="remaining' + (a.creditLimit - a.creditUsed <= 0 ? ' empty' : a.creditUsed / a.creditLimit > 0.8 ? ' low' : '') + '">剩余 ' + (a.creditLimit - a.creditUsed) + '</span></div><div class="quota-bar-bg"><div class="quota-bar-fill" style="width:' + Math.min(100, Math.round(a.creditUsed / a.creditLimit * 100)) + '%;background:' + (a.creditUsed / a.creditLimit > 0.8 ? '#ef4444' : a.creditUsed / a.creditLimit > 0.5 ? '#eab308' : '#22c55e') + '"></div></div>'
-        : (a.creditLimit === 0 && a.creditUsed > 0
-          ? '<div class="quota-info"><span>配额: <span class="used">' + a.creditUsed + ' / 无限</span></span></div>'
-          : ''))
-      + '</div>';
+/* ===== Theme System ===== */
+const THEMES = [
+  {id:'dark-blue',name:'深邃蓝黑',desc:'类 VS Code',swatches:['#0f1117','#1a1d2e','#3b82f6','#22c55e','#ef4444']},
+  {id:'purple-tech',name:'紫色科技感',desc:'类 Linear / Vercel',swatches:['#0a0a0f','#13131f','#6366f1','#10b981','#f43f5e']},
+  {id:'forest-green',name:'森林墨绿',desc:'自然沉稳',swatches:['#0d1f17','#13291f','#10b981','#84cc16','#f43f5e']},
+  {id:'solarized-dark',name:'Solarized 暗色',desc:'经典护眼',swatches:['#002b36','#073642','#268bd2','#2aa198','#dc322f']},
+  {id:'light-clean',name:'清爽亮白',desc:'白天使用',swatches:['#f8f9fa','#ffffff','#3b82f6','#16a34a','#dc2626']},
+  {id:'warm-sand',name:'暖沙米色',desc:'温暖护眼',swatches:['#f5f0e8','#fffdf8','#d97706','#059669','#dc2626']},
+  {id:'rose-light',name:'玫瑰粉亮',desc:'柔和优雅',swatches:['#fdf2f8','#ffffff','#ec4899','#059669','#dc2626']},
+  {id:'nord-light',name:'Nord 亮色',desc:'北欧极地',swatches:['#eceff4','#ffffff','#5e81ac','#5e8b3a','#bf616a']},
+];
+function getStoredTheme(){ try{ return localStorage.getItem('kiro_theme')||'dark-blue'; }catch(e){ return 'dark-blue'; } }
+function applyTheme(id){ document.documentElement.setAttribute('data-theme',id); try{ localStorage.setItem('kiro_theme',id); }catch(e){} }
+function initTheme(){ applyTheme(getStoredTheme()); }
+function renderThemePicker(){
+  const grid=$('themePickerGrid'); if(!grid) return;
+  const current=getStoredTheme();
+  grid.innerHTML=THEMES.map(t=>{
+    const sel=t.id===current;
+    return '<div class="lift rounded-lg p-3 cursor-pointer" onclick="selectTheme(\''+t.id+'\')" style="background:linear-gradient(145deg,var(--card),var(--card2));border:2px solid '+(sel?'var(--accent)':'var(--border)')+';'+(sel?'box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 20%,transparent),0 0 16px color-mix(in srgb,var(--accent) 15%,transparent);':'box-shadow:var(--shadow-sm);')+'">'
+      +'<div class="text-xs font-semibold mb-2" style="color:var(--text);">'+t.name+'</div>'
+      +'<div class="flex gap-1 mb-2">'+t.swatches.map(c=>'<div style="width:20px;height:20px;border-radius:4px;background:'+c+';border:1px solid rgba(0,0,0,.15);"></div>').join('')+'</div>'
+      +'<div class="text-xs" style="color:var(--muted);">'+t.desc+'</div>'
+      +'</div>';
   }).join('');
+}
+function selectTheme(id){ applyTheme(id); renderThemePicker(); toast('主题已切换: '+THEMES.find(t=>t.id===id).name); }
+initTheme();
+
+/* ===== Core Utils ===== */
+const API_KEY='kiro-admin-2026';
+let _apiKey=API_KEY;
+const headers=()=>({'Authorization':'Bearer '+_apiKey});
+const $=id=>document.getElementById(id);
+const ic=(n,c)=>'<svg class="ic '+(c||'ic-sm')+'"><use href="#i-'+n+'"/></svg>';
+
+/* ===== Sidebar / Page Routing ===== */
+function toggleSidebar(){ $('sidebar').classList.toggle('collapsed'); }
+function switchPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('nav-active'));
+  $('page-'+name).classList.add('active');
+  document.querySelector('.nav-item[data-page="'+name+'"]').classList.add('nav-active');
+  if(name==='settings') loadSettings();
+  if(name==='accounts') refresh();
+  if(window.innerWidth<=640) $('sidebar').classList.add('collapsed');
+}
+
+/* ===== Dashboard / Filter ===== */
+let _dashboardData=null;
+let _quickNoModels=false;
+
+function applyFilter(){
+  const bar=$('filterBar');
+  if(!_dashboardData){bar.style.display='none';return;}
+  bar.style.display='block';
+  const status=$('filterStatus').value, sub=$('filterSub').value;
+  const domain=$('filterDomain').value.toLowerCase().trim();
+  const usageMin=parseInt($('filterUsage').value)||0;
+  const hasModels=$('filterHasModels').checked;
+  let visible=0;
+  _dashboardData.accounts.forEach(function(a){
+    var card=document.querySelector('.account-card[data-account-id="'+a.id+'"]');
+    if(!card) return;
+    var show=true;
+    if(status&&a.status!==status) show=false;
+    if(sub&&a.subscription!==sub) show=false;
+    if(domain){var atIdx=(a.email||'').indexOf('@');var dom=atIdx>=0?a.email.substring(atIdx+1):'';if(dom.indexOf(domain)===-1)show=false;}
+    if(hasModels&&(!Array.isArray(a.models)||a.models.length===0))show=false;
+    if(usageMin>0&&a.creditLimit>0){var pct=Math.round(a.creditUsed/a.creditLimit*100);if(pct<usageMin)show=false;}
+    card.style.display=show?'':'none';
+    if(show)visible++;
+  });
+  if(_quickNoModels){
+    _dashboardData.accounts.forEach(function(a){
+      var card=document.querySelector('.account-card[data-account-id="'+a.id+'"]');
+      if(!card)return;
+      if(Array.isArray(a.models)&&a.models.length>0)card.style.display='none';
+    });
+    visible=0;
+    document.querySelectorAll('.account-card').forEach(function(c){if(c.style.display!=='none')visible++;});
+  }
+  $('filterCount').textContent=visible+'/'+_dashboardData.accounts.length;
+}
+function resetFilter(){
+  $('filterStatus').value='';$('filterSub').value='';$('filterDomain').value='';
+  $('filterHasModels').checked=false;$('filterUsage').value=0;
+  $('filterUsageLabel').textContent='0%';
+  _quickNoModels=false;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   applyFilter();
-
-
-  // Cooldown countdown: update every second
-  if (typeof _cdInterval === 'undefined') {
-    _cdInterval = setInterval(function() {
-      document.querySelectorAll('.cooldown-timer').forEach(function(el) {
-        var ts = parseInt(el.getAttribute('data-cooldown'));
-        if (!ts) return;
-        var rem = Math.max(0, Math.floor(ts - Date.now()/1000));
-        el.textContent = ' [' + rem + 's]';
-      });
-    }, 1000);
-  }
-  // Proxy indicator
-  if (gw.proxy_url) {
-    $('proxyIndicator').style.display = 'inline-block';
-    $('proxyUrlDisplay').textContent = gw.proxy_url;
-  } else {
-    $('proxyIndicator').style.display = 'none';
-  }
+}
+function quickFilter(type){
+  resetFilter();
+  if(type==='healthy')$('filterStatus').value='healthy';
+  else if(type==='degraded')$('filterStatus').value='degraded';
+  else if(type==='nomodels')_quickNoModels=true;
+  applyFilter();
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.textContent.indexOf(type==='nomodels'?'无模型':(type==='healthy'?'正常':'异常'))>=0));
 }
 
-function renderModels(d) {
-  const list = d.models || [];
-  $('modelCount').textContent = list.length + ' 个';
-  $('modelsSection').innerHTML = '<div class="models-tags">' + list.map(m => '<span class="model-tag">' + m + '</span>').join('') + '</div>';
+function refresh(){
+  Promise.all([
+    fetch('/admin/api/dashboard',{headers:headers()}).then(r=>r.json()),
+    fetch('/admin/api/models',{headers:headers()}).then(r=>r.json())
+  ]).then(([dash,models])=>{
+    renderDashboard(dash);renderModels(models);
+    $('lastUpdate').textContent='最后更新: '+new Date().toLocaleTimeString('zh-CN');
+  }).catch(e=>{
+    $('lastUpdate').textContent='刷新失败: '+e.message;
+    $('statusBadge').textContent='刷新失败';$('statusBadge').className='badge cooldown';
+  });
+}
+function refreshCredits(){
+  const btn=$('refreshCreditsBtn');btn.disabled=true;btn.textContent='刷新中...';
+  fetch('/admin/api/accounts/refresh-credits',{method:'POST',headers:headers()})
+    .then(r=>r.json()).then(data=>{
+      var msg='额度刷新完成';
+      if(data.total>0){msg+=': '+(data.ok||0)+'/'+data.total+' 成功';if(data.fail)msg+=', '+data.fail+' 失败';}
+      toast(msg);refresh();
+    }).catch(e=>toast('刷新额度失败: '+e.message))
+    .finally(()=>{btn.disabled=false;btn.textContent='刷新额度';});
+}
+function checkAliveness(){
+  const btn=$('checkAlivenessBtn');btn.disabled=true;btn.textContent='测活中...';
+  fetch('/admin/api/accounts/check-aliveness',{method:'POST',headers:headers()})
+    .then(r=>r.json()).then(data=>{
+      if(data.success){toast('测活完成: '+(data.alive||0)+' 存活 / '+(data.dead||0)+' 失效 (共'+data.total+'个)');refresh();}
+      else toast('测活请求失败');
+    }).catch(e=>toast('测活请求失败: '+e.message))
+    .finally(()=>{btn.disabled=false;btn.textContent='测活';});
 }
 
-function formatUptime(s) {
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 24) return Math.floor(h/24) + '天' + (h%24) + '小时';
-  if (h > 0) return h + '小时' + m + '分';
-  return m + '分钟';
-}
-
-// ---- Settings ----
-// Fallback clipboard copy that works over HTTP
-function copyToClipboard(text) {
-  if (navigator.clipboard && window.isSecureContext) {
-    return navigator.clipboard.writeText(text).catch(function() { copyViaTextarea(text); });
-  }
-  copyViaTextarea(text);
-}
-function copyViaTextarea(text) {
-  var ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed'; ta.style.left = '-9999px'; ta.style.top = '-9999px';
-  document.body.appendChild(ta);
-  ta.focus(); ta.select();
-  try { document.execCommand('copy'); } catch(e) {}
-  document.body.removeChild(ta);
-}
-
-function loadSettings() {
-  fetch('/admin/api/settings', { headers: headers() })
-    .then(r => r.json())
-    .then(s => {
-      $('adminKeyDisplay').textContent = s.admin_key_masked;
-      $('proxyApiKeyDisplay').textContent = s.proxy_api_key_masked || '(未设置)';
-      $('proxyUrlInput').value = s.proxy_url || '';
-      if (s.proxy_url) {
-        showProxyStatus(true, '已启用: ' + s.proxy_url);
-      } else {
-        showProxyStatus(false, '未启用');
-      }
-    })
-    .catch(e => {
-      $('adminKeyDisplay').textContent = '加载失败';
-    });
-}
-
-function copyAdminKey() {
-  copyToClipboard(_apiKey);
-  toast('Admin API Key copied');
-}
-
-function copyProxyApiKey() {
-  fetch('/admin/api/settings', { headers: headers() })
-    .then(r => r.json())
-    .then(s => {
-      if (s.proxy_api_key) {
-        copyToClipboard(s.proxy_api_key);
-        toast('Proxy API Key copied');
-      } else {
-        toast('Proxy API Key not set');
-      }
-    });
-}
-
-function refreshAdminKey() {
-  if (!confirm('确认刷新 Admin API Key？当前页面的 Key 会自动更新。')) return;
-
-  fetch('/admin/api/settings/key/refresh', {
-    method: 'POST',
-    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      _apiKey = data.new_key;  // Update runtime key
-      $('adminKeyDisplay').textContent = data.new_key.slice(0, 8) + '...';
-      toast('Admin API Key 已刷新！新 Key: ' + data.new_key);
-    } else {
-      toast('刷新失败');
-    }
-  })
-  .catch(e => toast('请求失败: ' + e.message));
-}
-
-function saveProxy() {
-  const url = $('proxyUrlInput').value.trim();
-  fetch('/admin/api/settings/proxy', {
-    method: 'POST',
-    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ proxy_url: url })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      if (url) {
-        showProxyStatus(true, '已启用: ' + url);
-      } else {
-        showProxyStatus(false, '代理已清除');
-      }
-      toast(data.message);
-    }
-  })
-  .catch(e => toast('保存失败: ' + e.message));
-}
-
-function clearProxy() {
-  fetch('/admin/api/settings/proxy', {
-    method: 'DELETE',
-    headers: headers()
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      $('proxyUrlInput').value = '';
-      showProxyStatus(false, '代理已清除');
-      toast(data.message);
-    }
-  })
-  .catch(e => toast('清除失败: ' + e.message));
-}
-
-function showProxyStatus(enabled, text) {
-  const el = $('proxyStatus');
-  el.style.display = 'block';
-  el.style.color = enabled ? 'var(--green)' : 'var(--muted)';
-  el.textContent = (enabled ? '\u2705 ' : '\u274C ') + text;
-}
-
-function toast(msg) {
-  const el = document.createElement('div');
-  el.textContent = msg;
-  el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid #2a2d3e;color:#e1e4ed;padding:10px 20px;border-radius:8px;font-size:13px;z-index:200;box-shadow:0 4px 12px rgba(0,0,0,.4);max-width:90vw;word-break:break-all;';
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 4000);
-}
-
-// ---- Account Addition ----
-function showAddModal() {
-  $('addModal').classList.add('active');
-  $('modalMsg').style.display = 'none';
-  $('btnSubmit').disabled = false;
-}
-
-function closeAddModal() {
-  $('addModal').classList.remove('active');
-}
-
-function clearMsg() {
-  $('modalMsg').style.display = 'none';
-}
-
-function addAccount() {
-  const email = $('f_email').value.trim();
-  const clientId = $('f_clientId').value.trim();
-  const clientSecret = $('f_clientSecret').value.trim();
-  const refreshToken = $('f_refreshToken').value.trim();
-  const region = $('f_region').value;
-  const provider = $('f_provider').value.trim();
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    showMsg('error', 'Client ID, Client Secret 和 Refresh Token 为必填项');
+function renderDashboard(d){
+  const gw=d.gateway,rqs=d.requests,cr=d.credits;
+  const realWorking=gw.accounts_healthy_real||0;
+  if(realWorking===gw.accounts_total&&gw.accounts_total>0){$('statusBadge').textContent='全部正常';$('statusBadge').className='badge healthy';}
+  else if(realWorking>0){$('statusBadge').textContent=realWorking+'/'+gw.accounts_total+' 在线';$('statusBadge').className='badge healthy';}
+  else if(gw.accounts_degraded>0){$('statusBadge').textContent=gw.accounts_degraded+' 个异常';$('statusBadge').className='badge degraded';}
+  else{$('statusBadge').textContent=gw.accounts_failed+' 个离线';$('statusBadge').className='badge cooldown';}
+  $('statsRow').innerHTML=[
+    {label:'总账号',value:gw.accounts_total,sub:'正常 '+gw.accounts_healthy+' / 异常 '+gw.accounts_degraded},
+    {label:'请求总数',value:rqs.total,sub:'成功 '+rqs.success+' / 失败 '+rqs.failed},
+    {label:'每日额度',value:cr.remaining+' / '+cr.limit,sub:'已用 '+cr.used},
+    {label:'运行时间',value:formatUptime(gw.uptime),sub:''},
+  ].map(s=>'<div class="stat-card-top card-gradient border border-border rounded-xl p-4" style="box-shadow:var(--shadow-sm);"><div class="text-xs text-muted uppercase tracking-wide">'+s.label+'</div><div class="text-2xl font-bold mt-1" style="color:var(--accent);">'+s.value+'</div><div class="text-xs text-muted mt-0.5">'+s.sub+'</div></div>').join('');
+  const healthy=d.accounts.filter(a=>a.status==='healthy').length;
+  const degraded=d.accounts.filter(a=>a.status==='degraded'||a.status==='cooldown').length;
+  $('accountSummary').textContent=healthy+' 正常 / '+degraded+' 异常';
+  _dashboardData=d;
+  if(!d.accounts||d.accounts.length===0){
+    $('accountsGrid').innerHTML='<div class="empty-state" style="grid-column:1/-1;"><div class="empty-state-icon">'+ic('package','ic-xl')+'</div><div class="text-sm font-medium mb-1">暂无账号</div><div class="text-xs">点击右上角“导入JSON”或“添加账号”开始</div></div>';
     return;
   }
+  $('accountsGrid').innerHTML=d.accounts.map((a,idx)=>{
+    const sc=a.status==='healthy'?'healthy':(a.status==='cooldown'?'cooldown':(a.status==='pending'?'pending':'degraded'));
+    const statusMap={'healthy':'正常','cooldown':'冷却中','degraded':'异常','pending':'等待初始化'};
+    const sl=statusMap[a.status]||'未知';
+    const cdLeft=a.cooldown_until>Math.floor(Date.now()/1000)?Math.max(0,Math.floor(a.cooldown_until-Date.now()/1000)):0;
+    const email=a.email||'-',sub=a.subscription||'-';
+    return '<div class="account-card card-gradient border border-border rounded-xl p-3"'+(d.gateway&&d.gateway.current_account_index===idx?' sticky':'')+' data-account-id="'+a.id+'">'
+      +'<div class="flex justify-between items-center mb-1.5">'
+      +'<label class="flex items-center gap-1.5 cursor-pointer flex-1">'
+      +'<input type="checkbox" class="acct-checkbox" data-id="'+a.id+'" onchange="updateBatchBar()" style="accent-color:var(--accent);cursor:pointer;">'
+      +'<span class="text-xs font-semibold">'+email+'</span>'+(d.gateway&&d.gateway.current_account_index===idx?'<span class="sticky-badge">Sticky</span>':'')
+      +'</label>'
+      +'<span class="badge '+sc+'">'+sl+'</span>'+(cdLeft>0?'<span class="cooldown-timer text-xs" style="color:var(--red);" data-cooldown="'+a.cooldown_until+'"> ['+cdLeft+'s]</span>':'')
+      +'</div>'
+      +'<div class="text-xs text-muted mb-1.5">'+sub+'</div>'
+      +'<div class="text-xs text-muted whitespace-nowrap"><span style="color:var(--green);font-weight:600;">OK '+a.stats.success+'</span> <span style="color:var(--red);font-weight:600;margin-left:8px;">FAIL '+a.stats.failed+'</span></div>'
+      +(a.creditLimit>0
+        ?'<div class="text-xs text-muted mt-1 flex justify-between"><span>配额: <span style="color:var(--text);">'+a.creditUsed+' / '+a.creditLimit+'</span></span><span style="color:'+(a.creditLimit-a.creditUsed<=0?'var(--red)':(a.creditUsed/a.creditLimit>0.8?'var(--yellow)':'var(--green)'))+';">剩余 '+(a.creditLimit-a.creditUsed)+'</span></div><div class="rounded-full overflow-hidden mt-1" style="height:6px;background:var(--border);"><div style="height:100%;border-radius:3px;transition:width .3s;width:'+Math.min(100,Math.round(a.creditUsed/a.creditLimit*100))+'%;background:'+(a.creditUsed/a.creditLimit>0.8?'var(--red)':(a.creditUsed/a.creditLimit>0.5?'var(--yellow)':'var(--green)'))+'"></div></div>'
+        :(a.creditLimit===0&&a.creditUsed>0?'<div class="text-xs text-muted mt-1"><span>配额: <span style="color:var(--text);">'+a.creditUsed+' / 无限</span></span></div>':''))
+      +'</div>';
+  }).join('');
+  applyFilter();
+  if(typeof _cdInterval==='undefined'){_cdInterval=setInterval(function(){document.querySelectorAll('.cooldown-timer').forEach(function(el){var ts=parseInt(el.getAttribute('data-cooldown'));if(!ts)return;var rem=Math.max(0,Math.floor(ts-Date.now()/1000));el.textContent=' ['+rem+'s]';});},1000);}
+  if(gw.proxy_url){$('proxyIndicator').style.display='inline-block';$('proxyUrlDisplay').textContent=gw.proxy_url;}
+  else $('proxyIndicator').style.display='none';
+}
 
-  $('btnSubmit').disabled = true;
-  showMsg('info', '正在添加并初始化账号，请稍候...');
+function renderModels(d){
+  const list=d.models||[];
+  $('modelCount').textContent=list.length+' 个';
+  $('modelsSection').innerHTML='<div class="flex flex-wrap gap-1.5 mt-1.5">'+list.map(m=>'<span class="model-tag">'+m+'</span>').join('')+'</div>';
+}
 
-  fetch('/admin/api/accounts', {
-    method: 'POST',
-    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ clientId, clientSecret, refreshToken, email, region, provider })
-  })
-  .then(r => r.json().then(d => ({ status: r.status, body: d })))
-  .then(({ status, body }) => {
-    if (status === 200 || status === 202) {
-      showMsg('success', body.message);
-      $('btnSubmit').disabled = false;
-      $('f_email').value = ''; $('f_clientId').value = '';
-      $('f_clientSecret').value = ''; $('f_refreshToken').value = '';
-      setTimeout(refresh, 2000);
-    } else {
-      showMsg('error', body.detail || '添加失败');
-      $('btnSubmit').disabled = false;
-    }
-  })
-  .catch(e => {
-    showMsg('error', '网络错误: ' + e.message);
-    $('btnSubmit').disabled = false;
+function formatUptime(s){
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+  if(h>24)return Math.floor(h/24)+'天'+(h%24)+'小时';
+  if(h>0)return h+'小时'+m+'分';
+  return m+'分钟';
+}
+
+/* ===== Settings ===== */
+function copyToClipboard(text){
+  if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(text).catch(()=>copyViaTextarea(text));
+  copyViaTextarea(text);
+}
+function copyViaTextarea(text){
+  var ta=document.createElement('textarea');ta.value=text;
+  ta.style.position='fixed';ta.style.left='-9999px';ta.style.top='-9999px';
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand('copy');}catch(e){}
+  document.body.removeChild(ta);
+}
+function loadSettings(){
+  renderThemePicker();
+  fetch('/admin/api/settings',{headers:headers()})
+    .then(r=>r.json()).then(s=>{
+      $('adminKeyDisplay').textContent=s.admin_key_masked;
+      $('proxyApiKeyDisplay').textContent=s.proxy_api_key_masked||'(未设置)';
+      $('proxyUrlInput').value=s.proxy_url||'';
+      if(s.proxy_url)showProxyStatus(true,'已启用: '+s.proxy_url);
+      else showProxyStatus(false,'未启用');
+    }).catch(e=>{$('adminKeyDisplay').textContent='加载失败';});
+}
+function copyAdminKey(){copyToClipboard(_apiKey);toast('Admin API Key copied');}
+function copyProxyApiKey(){
+  fetch('/admin/api/settings',{headers:headers()}).then(r=>r.json()).then(s=>{
+    if(s.proxy_api_key){copyToClipboard(s.proxy_api_key);toast('Proxy API Key copied');}
+    else toast('Proxy API Key not set');
   });
 }
-
-function showMsg(type, text) {
-  const el = $('modalMsg');
-  el.textContent = text;
-  el.className = 'modal-msg ' + (type === 'error' ? 'error' : 'success');
-  el.style.display = 'block';
+function refreshAdminKey(){
+  if(!confirm('确认刷新 Admin API Key？当前页面的 Key 会自动更新。'))return;
+  fetch('/admin/api/settings/key/refresh',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'})})
+    .then(r=>r.json()).then(data=>{
+      if(data.success){_apiKey=data.new_key;$('adminKeyDisplay').textContent=data.new_key.slice(0,8)+'...';toast('Admin API Key 已刷新！新 Key: '+data.new_key);}
+      else toast('刷新失败');
+    }).catch(e=>toast('请求失败: '+e.message));
+}
+function saveProxy(){
+  const url=$('proxyUrlInput').value.trim();
+  fetch('/admin/api/settings/proxy',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'}),body:JSON.stringify({proxy_url:url})})
+    .then(r=>r.json()).then(data=>{if(data.success){if(url)showProxyStatus(true,'已启用: '+url);else showProxyStatus(false,'代理已清除');toast(data.message);}})
+    .catch(e=>toast('保存失败: '+e.message));
+}
+function clearProxy(){
+  fetch('/admin/api/settings/proxy',{method:'DELETE',headers:headers()})
+    .then(r=>r.json()).then(data=>{if(data.success){$('proxyUrlInput').value='';showProxyStatus(false,'代理已清除');toast(data.message);}})
+    .catch(e=>toast('清除失败: '+e.message));
+}
+function showProxyStatus(enabled,text){
+  const el=$('proxyStatus');el.style.display='block';
+  el.style.color=enabled?'var(--green)':'var(--muted)';
+  el.textContent=(enabled?'\u2705 ':'\u274C ')+text;
 }
 
-// ---- JSON Import ----
-let _importAccounts = [];
+function toast(msg){
+  const el=document.createElement('div');el.textContent=msg;
+  el.className='toast-anim';
+  el.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:linear-gradient(145deg,var(--card),var(--card2));border:1px solid var(--accent);color:var(--text);padding:10px 22px;border-radius:10px;font-size:13px;z-index:200;box-shadow:0 4px 20px rgba(0,0,0,.4),0 0 12px color-mix(in srgb,var(--accent) 15%,transparent);max-width:90vw;word-break:break-all;';
+  document.body.appendChild(el);setTimeout(()=>{el.style.opacity='0';el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300);},3500);
+}
 
-function triggerJsonImport() { $('jsonFileInput').click(); }
+/* ===== Account Addition ===== */
+function showAddModal(){$('addModal').classList.add('active');$('addModal').style.display='flex';$('modalMsg').style.display='none';$('btnSubmit').disabled=false;}
+function closeAddModal(){$('addModal').classList.remove('active');$('addModal').style.display='none';}
+function clearMsg(){$('modalMsg').style.display='none';}
+function addAccount(){
+  const email=$('f_email').value.trim(),clientId=$('f_clientId').value.trim();
+  const clientSecret=$('f_clientSecret').value.trim(),refreshToken=$('f_refreshToken').value.trim();
+  const region=$('f_region').value,provider=$('f_provider').value.trim();
+  if(!clientId||!clientSecret||!refreshToken){showMsg('error','Client ID, Client Secret 和 Refresh Token 为必填项');return;}
+  $('btnSubmit').disabled=true;showMsg('info','正在添加并初始化账号，请稍候...');
+  fetch('/admin/api/accounts',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'}),body:JSON.stringify({clientId,clientSecret,refreshToken,email,region,provider})})
+    .then(r=>r.json().then(d=>({status:r.status,body:d})))
+    .then(({status,body})=>{
+      if(status===200||status===202){showMsg('success',body.message);$('btnSubmit').disabled=false;$('f_email').value='';$('f_clientId').value='';$('f_clientSecret').value='';$('f_refreshToken').value='';setTimeout(refresh,2000);}
+      else{showMsg('error',body.detail||'添加失败');$('btnSubmit').disabled=false;}
+    }).catch(e=>{showMsg('error','网络错误: '+e.message);$('btnSubmit').disabled=false;});
+}
+function showMsg(type,text){
+  const el=$('modalMsg');el.textContent=text;
+  el.className='modal-msg '+(type==='error'?'error':'success');
+  el.style.display='block';
+  if(type==='error')el.style.background='color-mix(in srgb,var(--red) 12%,transparent)',el.style.color='var(--red)';
+  else if(type==='success')el.style.background='color-mix(in srgb,var(--green) 12%,transparent)',el.style.color='var(--green)';
+  else el.style.background='color-mix(in srgb,var(--accent) 12%,transparent)',el.style.color='var(--accent)';
+}
 
-function handleJsonFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data)) throw new Error('JSON 根节点必须是数组');
-      _importAccounts = data;
-      $('importFileName').textContent = file.name;
-      $('importCount').textContent = data.length + ' 个';
-      $('importResult').style.display = 'none';
-      $('importProgress').style.display = 'none';
-      $('importPreview').style.display = 'block';
-      $('importError').style.display = 'none';
-      $('importStartBtn').disabled = false;
-      $('importCancelBtn').disabled = false;
-      $('importStartBtn').style.display = 'inline-block';
-      $('importCancelBtn').textContent = '取消';
-      $('importModal').classList.add('active');
-    } catch (err) { alert('JSON 解析失败: ' + err.message); }
+/* ===== JSON Import ===== */
+let _importAccounts=[];
+function triggerJsonImport(){$('jsonFileInput').click();}
+function handleJsonFile(event){
+  const file=event.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!Array.isArray(data))throw new Error('JSON 根节点必须是数组');
+      _importAccounts=data;
+      $('importFileName').textContent=file.name;
+      $('importCount').textContent=data.length+' 个';
+      $('importResult').style.display='none';$('importProgress').style.display='none';
+      $('importPreview').style.display='block';$('importError').style.display='none';
+      $('importStartBtn').disabled=false;$('importCancelBtn').disabled=false;
+      $('importStartBtn').style.display='inline-block';$('importCancelBtn').textContent='取消';
+      $('importModal').classList.add('active');$('importModal').style.display='flex';
+    }catch(err){alert('JSON 解析失败: '+err.message);}
   };
-  reader.readAsText(file);
-  event.target.value = '';
+  reader.readAsText(file);event.target.value='';
 }
-
-function closeImportModal() {
-  $('importModal').classList.remove('active');
-  _importAccounts = [];
-}
-
-function startJsonImport() {
-  const accounts = _importAccounts;
-  if (!accounts.length) return;
-  $('importPreview').style.display = 'none';
-  $('importProgress').style.display = 'block';
-  $('importResult').style.display = 'none';
-  $('importStartBtn').style.display = 'none';
-  $('importCancelBtn').disabled = true;
-  $('importCancelBtn').textContent = '导入中...';
-
-  const total = accounts.length;
-  let successCount = 0, failCount = 0;
-  const details = [];
-  let completed = 0;
-  const concurrency = 5;
-
-  function updateProgress() {
-    $('importStatusText').textContent = '正在导入 ' + completed + '/' + total + '...';
-    $('importProgressBar').style.width = Math.round((completed / total) * 100) + '%';
-  }
-
-  function finish() {
-    $('importProgress').style.display = 'none';
-    $('importResult').style.display = 'block';
-    $('importSuccessCount').textContent = successCount;
-    $('importFailCount').textContent = failCount;
-    $('importCancelBtn').textContent = '关闭';
-    $('importCancelBtn').disabled = false;
-    $('importStartBtn').style.display = 'none';
-    $('importDetails').innerHTML = details.map(d => {
-      const icon = d.success ? '\u2705' : '\u274C';
-      return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid rgba(42,45,62,.3);display:flex;justify-content:space-between;">'
-        + '<span>' + icon + ' ' + (d.email || d.file || '#' + d.index) + '</span>'
-        + '<span style="color:' + (d.success ? 'var(--green)' : 'var(--red)') + ';">' + (d.success ? 'OK' : d.error) + '</span></div>';
+function closeImportModal(){$('importModal').classList.remove('active');$('importModal').style.display='none';_importAccounts=[];}
+function startJsonImport(){
+  const accounts=_importAccounts;if(!accounts.length)return;
+  $('importPreview').style.display='none';$('importProgress').style.display='block';$('importResult').style.display='none';
+  $('importStartBtn').style.display='none';$('importCancelBtn').disabled=true;$('importCancelBtn').textContent='导入中...';
+  const total=accounts.length;let successCount=0,failCount=0;const details=[];let completed=0;const concurrency=5;
+  function updateProgress(){$('importStatusText').textContent='正在导入 '+completed+'/'+total+'...';$('importProgressBar').style.width=Math.round((completed/total)*100)+'%';}
+  function finish(){
+    $('importProgress').style.display='none';$('importResult').style.display='block';
+    $('importSuccessCount').textContent=successCount;$('importFailCount').textContent=failCount;
+    $('importCancelBtn').textContent='关闭';$('importCancelBtn').disabled=false;$('importStartBtn').style.display='none';
+    $('importDetails').innerHTML=details.map(d=>{
+      const icon=d.success?'\u2705':'\u274C';
+      return '<div class="py-0.5 text-xs flex justify-between" style="border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);">'
+        +'<span>'+icon+' '+(d.email||d.file||'#'+d.index)+'</span>'
+        +'<span style="color:'+(d.success?'var(--green)':'var(--red)')+';">'+(d.success?'OK':d.error)+'</span></div>';
     }).join('');
-    setTimeout(refresh, 2000);
+    setTimeout(refresh,2000);
   }
-
-  let idx = 0;
-
-  function processBatch() {
-    const batch = [];
-    while (batch.length < concurrency && idx < total) {
-      const i = idx++;
-      const acct = accounts[i];
-      batch.push(
-        fetch('/admin/api/accounts/batch', {
-          method: 'POST',
-          headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ accounts: [acct] })
-        })
-        .then(r => r.json())
-        .then(data => {
+  let idx=0;
+  function processBatch(){
+    const batch=[];
+    while(batch.length<concurrency&&idx<total){
+      const i=idx++;const acct=accounts[i];
+      batch.push(fetch('/admin/api/accounts/batch',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'}),body:JSON.stringify({accounts:[acct]})})
+        .then(r=>r.json()).then(data=>{
           completed++;
-          if (data.results && data.results[0]) {
-            const r = data.results[0];
-            r.success ? successCount++ : failCount++;
-            details.push({ index: i, email: acct.email || '', file: r.file, success: r.success, error: r.error || '' });
-          } else {
-            failCount++;
-            details.push({ index: i, email: acct.email || '', success: false, error: 'Unknown response' });
-          }
+          if(data.results&&data.results[0]){const r=data.results[0];r.success?successCount++:failCount++;details.push({index:i,email:acct.email||'',file:r.file,success:r.success,error:r.error||''});}
+          else{failCount++;details.push({index:i,email:acct.email||'',success:false,error:'Unknown response'});}
           updateProgress();
-        })
-        .catch(() => {
-          completed++;
-          failCount++;
-          details.push({ index: i, email: acct.email || '', success: false, error: 'Network error' });
-          updateProgress();
-        })
-      );
+        }).catch(()=>{completed++;failCount++;details.push({index:i,email:acct.email||'',success:false,error:'Network error'});updateProgress();}));
     }
-    return Promise.all(batch).then(() => {
-      if (idx < total) return processBatch();
-    });
+    return Promise.all(batch).then(()=>{if(idx<total)return processBatch();});
   }
-
   processBatch().then(finish);
 }
 
-// ---- Batch Selection ----
-function getSelectedIds() {
-  const checks = document.querySelectorAll('.acct-checkbox:checked');
-  return Array.from(checks).map(c => c.getAttribute('data-id'));
+/* ===== Batch Selection ===== */
+function getSelectedIds(){return Array.from(document.querySelectorAll('.acct-checkbox:checked')).map(c=>c.getAttribute('data-id'));}
+function updateBatchBar(){
+  const ids=getSelectedIds();const bar=$('batchBar');
+  if(ids.length>0){bar.style.display='flex';$('selectedCount').textContent=ids.length;}
+  else bar.style.display='none';
+  const allChecks=document.querySelectorAll('.acct-checkbox');
+  $('selectAllCheck').checked=allChecks.length>0&&allChecks.length===ids.length;
+}
+function toggleSelectAll(){const checked=$('selectAllCheck').checked;document.querySelectorAll('.acct-checkbox').forEach(c=>c.checked=checked);updateBatchBar();}
+function batchExport(){
+  const ids=getSelectedIds();if(ids.length===0)return;
+  fetch('/admin/api/accounts/batch/export',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'}),body:JSON.stringify({account_ids:ids})})
+    .then(r=>r.json()).then(data=>{
+      if(!data.accounts||data.accounts.length===0){toast('没有可导出的账号');return;}
+      const blob=new Blob([JSON.stringify(data.accounts,null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);const a=document.createElement('a');
+      a.href=url;a.download='kiro-accounts-export-'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);
+      toast('已导出 '+data.accounts.length+' 个账号');
+      document.querySelectorAll('.acct-checkbox').forEach(c=>c.checked=false);updateBatchBar();
+    }).catch(e=>toast('导出失败: '+e.message));
+}
+function showBatchDeleteConfirm(){
+  const ids=getSelectedIds();if(ids.length===0)return;
+  if(!confirm('确认删除 '+ids.length+' 个账号？\n账号文件将被永久删除，不可恢复。'))return;
+  fetch('/admin/api/accounts/batch/delete',{method:'POST',headers:Object.assign({},headers(),{'Content-Type':'application/json'}),body:JSON.stringify({account_ids:ids})})
+    .then(r=>r.json()).then(data=>{
+      if(data.success){toast(data.message);document.querySelectorAll('.acct-checkbox').forEach(c=>c.checked=false);updateBatchBar();setTimeout(refresh,1000);}
+      else toast('删除失败');
+    }).catch(e=>toast('删除失败: '+e.message));
 }
 
-function updateBatchBar() {
-  const ids = getSelectedIds();
-  const bar = $('batchBar');
-  if (ids.length > 0) {
-    bar.style.display = 'flex';
-    $('selectedCount').textContent = ids.length;
-  } else {
-    bar.style.display = 'none';
-  }
-  // Update select-all state
-  const allChecks = document.querySelectorAll('.acct-checkbox');
-  const checkedAll = allChecks.length > 0 && allChecks.length === ids.length;
-  $('selectAllCheck').checked = checkedAll;
-}
+/* ===== Modal overlay close ===== */
+$('addModal').addEventListener('click',function(e){if(e.target===this)closeAddModal();});
+$('importModal').addEventListener('click',function(e){if(e.target===this&&!$('importCancelBtn').disabled)closeImportModal();});
 
-function toggleSelectAll() {
-  const checked = $('selectAllCheck').checked;
-  document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = checked);
-  updateBatchBar();
-}
+/* ===== Init ===== */
+refresh();setInterval(refresh,10000);switchPage('accounts');
 
-function batchExport() {
-  const ids = getSelectedIds();
-  if (ids.length === 0) return;
+/* ===== Console ===== */
+let _cnslInterval=null,_cnslAuto=true,_cnslScale='day';
+var _cnslLogsExpanded={};
 
-  fetch('/admin/api/accounts/batch/export', {
-    method: 'POST',
-    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ account_ids: ids })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (!data.accounts || data.accounts.length === 0) {
-      toast('没有可导出的账号');
-      return;
-    }
-    // Trigger download as JSON file
-    const blob = new Blob([JSON.stringify(data.accounts, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'kiro-accounts-export-' + new Date().toISOString().slice(0,10) + '.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('已导出 ' + data.accounts.length + ' 个账号');
-    // Clear selection
-    document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = false);
-    updateBatchBar();
-  })
-  .catch(e => toast('导出失败: ' + e.message));
-}
-
-function showBatchDeleteConfirm() {
-  const ids = getSelectedIds();
-  if (ids.length === 0) return;
-  if (!confirm('确认删除 ' + ids.length + ' 个账号？\n账号文件将被永久删除，不可恢复。')) return;
-
-  fetch('/admin/api/accounts/batch/delete', {
-    method: 'POST',
-    headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ account_ids: ids })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      toast(data.message);
-      // Clear selection
-      document.querySelectorAll('.acct-checkbox').forEach(c => c.checked = false);
-      updateBatchBar();
-      setTimeout(refresh, 1000);
-    } else {
-      toast('删除失败');
-    }
-  })
-  .catch(e => toast('删除失败: ' + e.message));
-}
-
-// ---- Modal overlay close ----
-$('addModal').addEventListener('click', function(e) {
-  if (e.target === this) closeAddModal();
-});
-$('importModal').addEventListener('click', function(e) {
-  if (e.target === this && !$('importCancelBtn').disabled) closeImportModal();
-});
-
-// ---- Init ----
-refresh();
-setInterval(refresh, 10000);
-
-// ========== Console Page Logic ==========
-let _cnslInterval = null;
-let _cnslAuto = true;
-let _cnslScale = 'day';
-
-function loadConsole() {
-  refreshConsoleStats();
-  refreshConsoleLogs();
-  if (_cnslInterval) clearInterval(_cnslInterval);
-  if (_cnslAuto) _cnslInterval = setInterval(refreshConsoleLogs, 3000);
-}
-
-function refreshConsoleStats() {
-  fetch('/admin/api/console/stats?scale=' + _cnslScale, { headers: headers() })
-    .then(r => r.json())
-    .then(d => {
-      if (!d.success) return;
-      renderConsoleTotals(d.totals);
-      renderConsoleChart(d.series);
-    })
+function loadConsole(){refreshConsoleStats();refreshConsoleLogs();if(_cnslInterval)clearInterval(_cnslInterval);if(_cnslAuto)_cnslInterval=setInterval(refreshConsoleLogs,3000);}
+function refreshConsoleStats(){
+  fetch('/admin/api/console/stats?scale='+_cnslScale,{headers:headers()})
+    .then(r=>r.json()).then(d=>{if(!d.success)return;renderConsoleTotals(d.totals);renderConsoleChart(d.series);})
     .catch(function(){});
 }
-
-function renderConsoleTotals(t) {
-  $('cnslTotals').innerHTML = [
-    { lbl: '总请求', val: t.requests },
-    { lbl: '成功', val: t.success, c: 'var(--green)' },
-    { lbl: '失败', val: t.failed, c: 'var(--red)' },
-    { lbl: '输入Tokens', val: (t.input_tokens || 0).toLocaleString() },
-    { lbl: '成功率', val: (t.success_rate || 0) + '%' },
-  ].map(function(s) {
-    return '<div class="cnsl-total-item"><div class="lbl">' + s.lbl + '</div><div class="val"' + (s.c ? ' style="color:' + s.c + '"' : '') + '>' + s.val + '</div></div>';
-  }).join('');
+function renderConsoleTotals(t){
+  $('cnslTotals').innerHTML=[
+    {lbl:'总请求',val:t.requests},
+    {lbl:'成功',val:t.success,c:'var(--green)'},
+    {lbl:'失败',val:t.failed,c:'var(--red)'},
+    {lbl:'输入Tokens',val:(t.input_tokens||0).toLocaleString()},
+    {lbl:'成功率',val:(t.success_rate||0)+'%'},
+  ].map(s=>'<div class="stat-card-top card-gradient border border-border rounded-xl px-4 py-3" style="flex:1;min-width:120px;box-shadow:var(--shadow-sm);"><div class="text-xs text-muted">'+s.lbl+'</div><div class="text-xl font-bold mt-0.5"'+(s.c?' style="color:'+s.c+'"':' style="color:var(--accent);"')+'>'+s.val+'</div></div>').join('');
 }
-
-function renderConsoleChart(series) {
-  if (!series || series.length === 0) {
-    $('cnslBars').innerHTML = '<div style="width:100%;text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">暂无数据</div>';
-    $('cnslXLabels').innerHTML = '';
-    return;
+function renderConsoleChart(series){
+  if(!series||series.length===0){$('cnslBars').innerHTML='<div class="empty-state" style="width:100%;"><div class="empty-state-icon">'+ic('chart','ic-xl')+'</div><div class="text-sm font-medium mb-1">暂无数据</div></div>';$('cnslXLabels').innerHTML='';return;}
+  var maxReq=1;for(var i=0;i<series.length;i++)if(series[i].requests>maxReq)maxReq=series[i].requests;
+  var barsHtml='';
+  for(var i=0;i<series.length;i++){
+    var s=series[i];var pct=Math.round(s.requests/maxReq*100);if(pct<1&&s.requests>0)pct=3;
+    var color=s.failed>s.success?'var(--red)':'var(--accent)';
+    barsHtml+='<div class="cnsl-bar rounded-t-sm relative cursor-pointer" style="flex:1;min-width:8px;height:'+pct+'%;background:'+color+';border-radius:3px 3px 0 0;" title="'+s.time+': '+s.requests+' reqs">'
+      +'<div class="tip hidden absolute left-1/2 -translate-x-1/2 rounded-md px-2.5 py-1.5 text-xs whitespace-nowrap z-10 mb-1" style="bottom:100%;background:var(--card);border:1px solid var(--border);pointer-events:none;">'+s.time+'<br>请求: '+s.requests+'<br>成功: '+s.success+'<br>失败: '+s.failed+'<br>Tokens: '+(s.input_tokens||0).toLocaleString()+'</div></div>';
   }
-  var maxReq = 1;
-  for (var i = 0; i < series.length; i++) {
-    if (series[i].requests > maxReq) maxReq = series[i].requests;
-  }
-  var barsHtml = '';
-  for (var i = 0; i < series.length; i++) {
-    var s = series[i];
-    var pct = Math.round(s.requests / maxReq * 100);
-    if (pct < 1 && s.requests > 0) pct = 3; // minimum visible bar
-    var color = s.failed > s.success ? 'var(--red)' : 'var(--blue)';
-    barsHtml += '<div class="cnsl-bar" style="height:' + pct + '%;background:' + color + ';" title="' + s.time + ': ' + s.requests + ' reqs">'
-      + '<div class="tip">' + s.time + '<br>请求: ' + s.requests + '<br>成功: ' + s.success + '<br>失败: ' + s.failed + '<br>Tokens: ' + (s.input_tokens||0).toLocaleString() + '</div></div>';
-  }
-  $('cnslBars').innerHTML = barsHtml;
-  $('cnslXLabels').innerHTML = series.map(function(s) { return '<span>' + s.time + '</span>'; }).join('');
+  $('cnslBars').innerHTML=barsHtml;
+  $('cnslBars').querySelectorAll('.cnsl-bar').forEach(function(bar){bar.addEventListener('mouseenter',function(){var tip=this.querySelector('.tip');if(tip)tip.style.display='block';});bar.addEventListener('mouseleave',function(){var tip=this.querySelector('.tip');if(tip)tip.style.display='none';});});
+  $('cnslXLabels').innerHTML=series.map(s=>'<span class="flex-1 text-center text-xs text-muted">'+s.time+'</span>').join('');
 }
-
-function refreshConsoleLogs() {
-  fetch('/admin/api/console/logs?limit=50', { headers: headers() })
-    .then(r => r.json())
-    .then(d => {
-      if (!d.success) return;
-      renderConsoleLogs(d.data);
-    })
+function refreshConsoleLogs(){
+  fetch('/admin/api/console/logs?limit=50',{headers:headers()})
+    .then(r=>r.json()).then(d=>{if(!d.success)return;renderConsoleLogs(d.data);})
     .catch(function(){});
 }
-
-var _cnslLogsExpanded = {};
-
-function renderConsoleLogs(logs) {
-  var body = $('cnslLogBody');
-  if (!logs || logs.length === 0) {
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">暂无日志</td></tr>';
-    $('cnslLogCount').textContent = '0';
-    return;
+function renderConsoleLogs(logs){
+  var body=$('cnslLogBody');
+  if(!logs||logs.length===0){body.innerHTML='<tr><td colspan="6" class="empty-state" style="padding:40px 20px;"><div class="empty-state-icon" style="margin-bottom:8px;">'+ic('doc','ic-lg')+'</div><div class="text-sm">暂无日志</div></td></tr>';$('cnslLogCount').textContent='0';return;}
+  $('cnslLogCount').textContent=logs.length+' 条';
+  var newExpanded={};var html='';
+  for(var i=0;i<logs.length;i++){
+    var l=logs[i];var key=l.timestamp;var exp=_cnslLogsExpanded[key]||false;newExpanded[key]=exp;
+    var statusClass=l.status==='success'?'cnsl-status-ok':(l.status==='fail'?'cnsl-status-fail':'cnsl-status-proc');
+    var statusText=l.status==='success'?'OK':(l.status==='fail'?'FAIL':l.status);
+    var duration=l.duration?(l.duration>0?l.duration+'s':'-'):'-';
+    var detailRows=exp?' expanded':'';var arrow=exp?ic('chevron-up'):ic('chevron-down');
+    html+='<tr class="'+detailRows+'" onclick="toggleConsoleLogRow(this,\''+key+'\')">'
+      +'<td style="white-space:nowrap;padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);">'+(l.time||'-')+'</td>'
+      +'<td style="padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);">'+(l.model||'-')+'</td>'
+      +'<td style="padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);"><span class="'+statusClass+'" style="font-weight:600;">'+statusText+'</span></td>'
+      +'<td class="cnsl-col-url" title="'+(l.url||'')+'" style="padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(l.method||'')+' '+(l.url||'-')+'</td>'
+      +'<td style="padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);">'+duration+'</td>'
+      +'<td style="padding:8px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent);cursor:pointer;">'+arrow+'</td>'
+      +'</tr>'
+      +'<tr class="'+detailRows+'" style="background:rgba(0,0,0,.1);">'
+      +'<td colspan="6"><div class="log-detail">'
+      +'<b>账号:</b> '+(l.account_id||'-')+'<br>'
+      +'<b>客户端IP:</b> '+(l.client_ip||'-')+'<br>'
+      +'<b>输入 Tokens:</b> '+(l.input_tokens||'0')+' | <b>输出 Tokens:</b> '+(l.output_tokens||'0')+'<br>'
+      +(l.request_body?'<b>请求体:</b><div style="white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:10px;max-height:100px;overflow-y:auto;background:rgba(0,0,0,.2);border-radius:4px;padding:4px 6px;margin-top:4px;">'+escHtml(l.request_body)+'</div>':'')
+      +'</div></td></tr>';
   }
-  $('cnslLogCount').textContent = logs.length + ' 条';
-
-  var newExpanded = {};
-  var html = '';
-  for (var i = 0; i < logs.length; i++) {
-    var l = logs[i];
-    var key = l.timestamp;
-    var exp = _cnslLogsExpanded[key] || false;
-    newExpanded[key] = exp;
-    var statusClass = l.status === 'success' ? 'cnsl-status-ok' : (l.status === 'fail' ? 'cnsl-status-fail' : 'cnsl-status-proc');
-    var statusText = l.status === 'success' ? 'OK' : (l.status === 'fail' ? 'FAIL' : l.status);
-    var duration = l.duration ? (l.duration > 0 ? l.duration + 's' : '-') : '-';
-    var detailRows = exp ? ' expanded' : '';
-    var arrow = exp ? '&#9650;' : '&#9660;';
-    html += '<tr class="' + detailRows + '" onclick="toggleConsoleLogRow(this,\' + key + \')">'
-      + '<td style="white-space:nowrap;">' + (l.time || '-') + '</td>'
-      + '<td>' + (l.model || '-') + '</td>'
-      + '<td><span class="' + statusClass + '">' + statusText + '</span></td>'
-      + '<td class="cnsl-col-url" title="' + (l.url || '') + '">' + (l.method || '') + ' ' + (l.url || '-') + '</td>'
-      + '<td>' + duration + '</td>'
-      + '<td style="cursor:pointer;">' + arrow + '</td>'
-      + '</tr>'
-      + '<tr class="' + detailRows + '" style="background:rgba(0,0,0,.1);">'
-      + '<td colspan="6"><div class="log-detail">'
-      + '<b>账号:</b> ' + (l.account_id || '-') + '<br>'
-      + '<b>客户端IP:</b> ' + (l.client_ip || '-') + '<br>'
-      + '<b>输入 Tokens:</b> ' + (l.input_tokens || '0') + ' | <b>输出 Tokens:</b> ' + (l.output_tokens || '0') + '<br>'
-      + (l.request_body ? '<b>请求体:</b><div class="log-body">' + escHtml(l.request_body) + '</div>' : '')
-      + '</div></td></tr>';
-  }
-  body.innerHTML = html;
-  _cnslLogsExpanded = newExpanded;
+  body.innerHTML=html;_cnslLogsExpanded=newExpanded;
+  // Apply status colors
+  body.querySelectorAll('.cnsl-status-ok').forEach(e=>e.style.color='var(--green)');
+  body.querySelectorAll('.cnsl-status-fail').forEach(e=>e.style.color='var(--red)');
+  body.querySelectorAll('.cnsl-status-proc').forEach(e=>e.style.color='var(--yellow)');
 }
-
-function toggleConsoleLogRow(tr, key) {
-  _cnslLogsExpanded[key] = !_cnslLogsExpanded[key];
+function toggleConsoleLogRow(tr,key){
+  _cnslLogsExpanded[key]=!_cnslLogsExpanded[key];
   tr.classList.toggle('expanded');
-  var next = tr.nextElementSibling;
-  if (next) next.classList.toggle('expanded');
-  var arrow = tr.querySelector('td:last-child');
-  if (arrow) arrow.innerHTML = _cnslLogsExpanded[key] ? '&#9650;' : '&#9660;';
+  var next=tr.nextElementSibling;if(next)next.classList.toggle('expanded');
+  var arrow=tr.querySelector('td:last-child');if(arrow)arrow.innerHTML=_cnslLogsExpanded[key]?ic('chevron-up'):ic('chevron-down');
 }
-
-function switchConsoleScale(scale, btn) {
-  _cnslScale = scale;
-  var btns = document.querySelectorAll('.cnsl-scale .sbtn');
-  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
-  btn.classList.add('active');
+function switchConsoleScale(scale,btn){
+  _cnslScale=scale;
+  document.querySelectorAll('.cnsl-scale .sbtn').forEach(b=>{b.classList.remove('active');b.style.background='transparent';b.style.color='var(--muted)';b.style.borderColor='var(--border)';});
+  btn.classList.add('active');btn.style.background='var(--accent)';btn.style.color='#fff';btn.style.borderColor='var(--accent)';
   refreshConsoleStats();
 }
-
-function toggleConsoleAuto() {
-  _cnslAuto = !_cnslAuto;
-  var btn = $('cnslAutoBtn');
-  btn.classList.toggle('active');
-  btn.innerHTML = _cnslAuto ? '&#9654; 自动' : '&#9646;&#9646; 暂停';
-  if (_cnslAuto) {
-    loadConsole();
-  } else {
-    if (_cnslInterval) { clearInterval(_cnslInterval); _cnslInterval = null; }
-  }
+function toggleConsoleAuto(){
+  _cnslAuto=!_cnslAuto;var btn=$('cnslAutoBtn');btn.classList.toggle('active');
+  if(_cnslAuto){btn.style.background='var(--green)';btn.style.borderColor='var(--green)';btn.innerHTML=ic('play')+' 自动';loadConsole();}
+  else{btn.style.background='transparent';btn.style.borderColor='var(--border)';btn.style.color='var(--muted)';btn.innerHTML=ic('pause')+' 暂停';if(_cnslInterval){clearInterval(_cnslInterval);_cnslInterval=null;}}
+}
+function clearConsoleLogs(){
+  var body=$('cnslLogBody');if(body)body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">已清空</td></tr>';
+  $('cnslLogCount').textContent='0';
+  var bars=$('cnslBars');if(bars)bars.innerHTML='<div style="width:100%;text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">已清空</div>';
 }
 
-function clearConsoleLogs() {
-  var body = $('cnslLogBody');
-  if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">已清空</td></tr>';
-  $('cnslLogCount').textContent = '0';
-  var bars = $('cnslBars');
-  if (bars) bars.innerHTML = '<div style="width:100%;text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">已清空</div>';
-}
+/* ===== Playground ===== */
+const PG_STORAGE_KEY='kiro_playground';
+let pgStreaming=true,pgShowReasoning=false,pgAbortController=null;
 
-// ========== Playground Logic ==========
-const PG_STORAGE_KEY = 'kiro_playground';
-let pgStreaming = true;
-let pgShowReasoning = true;
-let pgAbortController = null;
+function pgLoadState(){try{const s=JSON.parse(localStorage.getItem(PG_STORAGE_KEY)||'{}');return{chats:s.chats||[],activeIdx:s.activeIdx||-1,settingsCollapsed:s.settingsCollapsed||false,curlCollapsed:s.curlCollapsed||false};}catch(e){return{chats:[],activeIdx:-1,settingsCollapsed:false,curlCollapsed:false};}}
+function pgSaveState(state){try{localStorage.setItem(PG_STORAGE_KEY,JSON.stringify({chats:state.chats,activeIdx:state.activeIdx,settingsCollapsed:state.settingsCollapsed,curlCollapsed:state.curlCollapsed}));}catch(e){}}
+let pgState=pgLoadState();
 
-// Load state
-function pgLoadState() {
-  try {
-    const s = JSON.parse(localStorage.getItem(PG_STORAGE_KEY) || '{}');
-    return {
-      chats: s.chats || [],
-      activeIdx: s.activeIdx || -1,
-      settingsCollapsed: s.settingsCollapsed || false,
-      curlCollapsed: s.curlCollapsed || false,
-      keyVisible: false
-    };
-  } catch(e) { return { chats: [], activeIdx: -1, settingsCollapsed: false, curlCollapsed: false, keyVisible: false }; }
-}
-function pgSaveState(state) {
-  try {
-    const toSave = { chats: state.chats, activeIdx: state.activeIdx, settingsCollapsed: state.settingsCollapsed, curlCollapsed: state.curlCollapsed };
-    localStorage.setItem(PG_STORAGE_KEY, JSON.stringify(toSave));
-  } catch(e) {}
-}
-let pgState = pgLoadState();
-
-// Initialize
-function initPlayground() {
-  fetchPgModels();
-  applyPgState();
-}
-
-function applyPgState() {
-  if (pgState.settingsCollapsed) {
-    $('pgSettingsBody').classList.add('collapsed');
-    $('pgSettingsHeader').classList.add('collapsed');
-  }
-  if (pgState.curlCollapsed) {
-    $('pgCurlBody').classList.add('collapsed');
-    $('pgCurlHeader').classList.add('collapsed');
-  }
+function initPlayground(){fetchPgModels();applyPgState();}
+function applyPgState(){
+  if(pgState.settingsCollapsed){$('pgSettingsBody').classList.add('hidden');$('pgSettingsHeader').classList.add('collapsed');$('pgSettingsToggle').style.transform='rotate(-90deg)';}
+  if(pgState.curlCollapsed){$('pgCurlBody').classList.add('hidden');$('pgCurlHeader').classList.add('collapsed');$('pgCurlToggle').style.transform='rotate(-90deg)';}
   renderPgHistory();
-  if (pgState.activeIdx >= 0 && pgState.activeIdx < pgState.chats.length) {
-    renderPgMessages();
-  }
+  if(pgState.activeIdx>=0&&pgState.activeIdx<pgState.chats.length)renderPgMessages();
 }
-
-// ---- Model Fetching ----
-function fetchPgModels() {
-  const url = $('pgUrl').value.replace(/\/v1\/chat\/completions$/, '') + '/v1/models';
-  const key = $('pgKey').value;
-  fetch(url, { headers: { 'Authorization': 'Bearer ' + key } })
-    .then(r => r.json())
-    .then(data => {
-      const models = data.data || data.models || [];
-      const sel = $('pgModel');
-      sel.innerHTML = models.map(m => {
-        const id = typeof m === 'string' ? m : m.id;
-        return '<option value="' + id + '">' + id + '</option>';
-      }).join('');
-      // Default: auto-kiro
-      const opts = Array.from(sel.options).map(o => o.value);
-      if (opts.includes('auto-kiro')) sel.value = 'auto-kiro';
-      else if (opts.includes('claude-sonnet-4.6')) sel.value = 'claude-sonnet-4.6';
-    })
-    .catch(() => {
-      // Fallback models
-      const sel = $('pgModel');
-      const fallback = ['auto-kiro','claude-opus-4.7','claude-sonnet-4.6','claude-haiku-4.5','claude-opus-4.5','gpt-5','gemini-2.5-flash'];
-      sel.innerHTML = fallback.map(m => '<option value="' + m + '">' + m + '</option>').join('');
-    });
+function fetchPgModels(){
+  const url=$('pgUrl').value.replace(/\/v1\/chat\/completions$/,'')+'/v1/models';
+  const key=$('pgKey').value;
+  fetch(url,{headers:{'Authorization':'Bearer '+key}}).then(r=>r.json()).then(data=>{
+    const models=data.data||data.models||[];const sel=$('pgModel');
+    sel.innerHTML=models.map(m=>{const id=typeof m==='string'?m:m.id;return'<option value="'+id+'">'+id+'</option>';}).join('');
+    const opts=Array.from(sel.options).map(o=>o.value);
+    if(opts.includes('auto-kiro'))sel.value='auto-kiro';
+    else if(opts.includes('claude-sonnet-4.6'))sel.value='claude-sonnet-4.6';
+  }).catch(()=>{const sel=$('pgModel');const fallback=['auto-kiro','claude-opus-4.7','claude-sonnet-4.6','claude-haiku-4.5','claude-opus-4.5','gpt-5','gemini-2.5-flash'];sel.innerHTML=fallback.map(m=>'<option value="'+m+'">'+m+'</option>').join('');});
 }
+function togglePgSettings(){const b=$('pgSettingsBody'),h=$('pgSettingsHeader');b.classList.toggle('hidden');h.classList.toggle('collapsed');$('pgSettingsToggle').style.transform=b.classList.contains('hidden')?'rotate(-90deg)':'';pgState.settingsCollapsed=b.classList.contains('hidden');pgSaveState(pgState);}
+function togglePgKey(){const input=$('pgKey');input.type=input.type==='password'?'text':'password';}
+function togglePgCurl(){const b=$('pgCurlBody'),h=$('pgCurlHeader');b.classList.toggle('hidden');h.classList.toggle('collapsed');$('pgCurlToggle').style.transform=b.classList.contains('hidden')?'rotate(-90deg)':'';pgState.curlCollapsed=b.classList.contains('hidden');pgSaveState(pgState);}
 
-// ---- Settings Toggle ----
-function togglePgSettings() {
-  const body = $('pgSettingsBody');
-  const header = $('pgSettingsHeader');
-  body.classList.toggle('collapsed');
-  header.classList.toggle('collapsed');
-  pgState.settingsCollapsed = body.classList.contains('collapsed');
-  pgSaveState(pgState);
-}
-
-function togglePgKey() {
-  const input = $('pgKey');
-  const isPass = input.type === 'password';
-  input.type = isPass ? 'text' : 'password';
-}
-
-function togglePgCurl() {
-  const body = $('pgCurlBody');
-  const header = $('pgCurlHeader');
-  body.classList.toggle('collapsed');
-  header.classList.toggle('collapsed');
-  pgState.curlCollapsed = body.classList.contains('collapsed');
-  pgSaveState(pgState);
-}
-
-// ---- Curl Tabs ----
-const CURL_EXAMPLES = {
-  chat: 'curl -X POST "' + ($('pgUrl')?$('pgUrl').value:'http://124.220.13.249/v1/chat/completions') + '" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","messages":[{"role":"user","content":"Hello!"}]}\'',
-  models: 'curl -X GET "http://124.220.13.249/v1/models" \\\n  -H "Authorization: Bearer YOUR_API_KEY"',
-  stream: 'curl -X POST "http://124.220.13.249/v1/chat/completions" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","stream":true,"messages":[{"role":"user","content":"Hello!"}]}\''
+const CURL_EXAMPLES={
+  chat:'curl -X POST "'+($('pgUrl')?$('pgUrl').value:'http://124.220.13.249/v1/chat/completions')+'" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","messages":[{"role":"user","content":"Hello!"}]}\'',
+  models:'curl -X GET "http://124.220.13.249/v1/models" \\\n  -H "Authorization: Bearer YOUR_API_KEY"',
+  stream:'curl -X POST "http://124.220.13.249/v1/chat/completions" \\\n  -H "Authorization: Bearer YOUR_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d \'{"model":"auto-kiro","stream":true,"messages":[{"role":"user","content":"Hello!"}]}\''
 };
+function switchCurlTab(tab,el){document.querySelectorAll('.pg-curl-tab').forEach(t=>{t.classList.remove('active');t.style.background='transparent';t.style.borderColor='var(--border)';t.style.color='var(--muted)';});el.classList.add('active');el.style.background='color-mix(in srgb,var(--accent) 12%,transparent)';el.style.borderColor='var(--accent)';el.style.color='var(--accent)';$('pgCurlCode').textContent=CURL_EXAMPLES[tab];}
+function copyPgCurl(){copyToClipboard($('pgCurlCode').textContent);toast('curl 命令已复制');}
 
-function switchCurlTab(tab, el) {
-  document.querySelectorAll('.pg-curl-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  $('pgCurlCode').textContent = CURL_EXAMPLES[tab];
-}
-
-function copyPgCurl() {
-  const code = $('pgCurlCode').textContent;
-  copyToClipboard(code);
-  toast('curl 命令已复制');
-}
-
-// ---- Chat History ----
-function newPgChat() {
-  pgState.chats.push({
-    id: Date.now(),
-    title: '新对话',
-    model: $('pgModel').value || 'auto-kiro',
-    systemPrompt: '',
-    messages: [],
-    createdAt: new Date().toISOString()
-  });
-  pgState.activeIdx = pgState.chats.length - 1;
-  pgSaveState(pgState);
-  renderPgHistory();
-  renderPgMessages();
-}
-
-function switchPgChat(idx) {
-  pgState.activeIdx = idx;
-  pgSaveState(pgState);
-  renderPgHistory();
-  renderPgMessages();
-}
-
-function deletePgChat(idx, e) {
-  e.stopPropagation();
-  if (!confirm('删除此对话？')) return;
-  pgState.chats.splice(idx, 1);
-  if (pgState.activeIdx >= pgState.chats.length) pgState.activeIdx = pgState.chats.length - 1;
-  pgSaveState(pgState);
-  renderPgHistory();
-  renderPgMessages();
-}
-
-function renderPgHistory() {
-  const list = $('pgHistoryList');
-  if (pgState.chats.length === 0) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;font-size:12px;color:var(--muted);">暂无历史记录</div>';
-    return;
-  }
-  list.innerHTML = pgState.chats.map((c, i) => {
-    const active = i === pgState.activeIdx ? ' active' : '';
-    const title = c.title || '新对话';
-    const time = c.createdAt ? new Date(c.createdAt).toLocaleString('zh-CN', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-    const msgCount = c.messages ? c.messages.length + ' 条' : '';
-    return '<div class="pg-history-item' + active + '" onclick="switchPgChat(' + i + ')">'
-      + '<div class="pg-hist-title">' + escHtml(title) + '</div>'
-      + '<div class="pg-hist-meta"><span>' + time + ' &middot; ' + msgCount + '</span><span class="pg-hist-delete" onclick="deletePgChat(' + i + ',event)">&times;</span></div>'
-      + '</div>';
+function newPgChat(){pgState.chats.push({id:Date.now(),title:'新对话',model:$('pgModel').value||'auto-kiro',systemPrompt:'',messages:[],createdAt:new Date().toISOString()});pgState.activeIdx=pgState.chats.length-1;pgSaveState(pgState);renderPgHistory();renderPgMessages();}
+function switchPgChat(idx){pgState.activeIdx=idx;pgSaveState(pgState);renderPgHistory();renderPgMessages();}
+function deletePgChat(idx,e){e.stopPropagation();if(!confirm('删除此对话？'))return;pgState.chats.splice(idx,1);if(pgState.activeIdx>=pgState.chats.length)pgState.activeIdx=pgState.chats.length-1;pgSaveState(pgState);renderPgHistory();renderPgMessages();}
+function renderPgHistory(){
+  const list=$('pgHistoryList');
+  if(pgState.chats.length===0){list.innerHTML='<div class="p-5 text-center text-xs text-muted">暂无历史记录</div>';return;}
+  list.innerHTML=pgState.chats.map((c,i)=>{
+    const active=i===pgState.activeIdx;const title=c.title||'新对话';
+    const time=c.createdAt?new Date(c.createdAt).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    const msgCount=c.messages?c.messages.length+' 条':'';
+    return '<div class="pg-history-item px-3.5 py-2 cursor-pointer border-b transition" onclick="switchPgChat('+i+')" style="border-color:color-mix(in srgb,var(--border) 30%,transparent);'+(active?'background:color-mix(in srgb,var(--accent) 8%,transparent);border-left:2px solid var(--accent);':'')+'">'
+      +'<div class="font-medium truncate mb-0.5 text-xs">'+escHtml(title)+'</div>'
+      +'<div class="text-xs text-muted flex justify-between items-center"><span>'+time+' &middot; '+msgCount+'</span><span class="pg-hist-delete cursor-pointer text-sm leading-none" onclick="deletePgChat('+i+',event)" style="visibility:hidden;color:var(--red);">&times;</span></div>'
+      +'</div>';
   }).join('');
+  list.querySelectorAll('.pg-history-item').forEach(item=>{item.addEventListener('mouseenter',function(){var d=this.querySelector('.pg-hist-delete');if(d)d.style.visibility='visible';});item.addEventListener('mouseleave',function(){var d=this.querySelector('.pg-hist-delete');if(d)d.style.visibility='hidden';});});
 }
+function escHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
-}
-
-// ---- Messages Rendering ----
-function renderPgMessages() {
-  const container = $('pgMessages');
-  const chat = pgState.chats[pgState.activeIdx];
-  if (!chat || chat.messages.length === 0) {
-    container.innerHTML = '<div class="pg-empty"><div class="pg-empty-icon">&#128172;</div><div style="font-size:15px;font-weight:500;margin-bottom:4px;">Kiro API 调试</div><div style="font-size:12px;color:var(--muted);">选择一个模型，开始对话</div></div>';
-    return;
-  }
-  container.innerHTML = chat.messages.map((m, i) => {
-    const role = m.role || 'user';
-    const avatar = role === 'user' ? '&#128100;' : role === 'assistant' ? '&#129302;' : '&#9881;';
-    const content = formatPgContent(m.content || '');
-    const reasoning = m.reasoning || '';
-    const tokens = m.tokens ? (' | ' + m.tokens + ' tokens') : '';
-    const time = m.time || '';
-    let reasoningHtml = '';
-    if (reasoning) {
-      reasoningHtml = '<div class="pg-reasoning-box">'
-        + '<div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')">'
-        + '<span>&#128161; 推理过程</span><span>&#9660;</span>'
-        + '</div>'
-        + '<div class="pg-reasoning-body">' + escHtml(reasoning) + '</div>'
-        + '</div>';
-    }
-    return '<div class="pg-msg ' + role + '">'
-      + '<div class="pg-msg-avatar">' + avatar + '</div>'
-      + '<div class="pg-msg-content">'
-      + reasoningHtml
-      + '<div class="pg-msg-bubble">' + content + '</div>'
-      + '<div class="pg-msg-meta"><span>' + time + tokens + '</span><button class="pg-msg-copy" onclick="copyPgMsg(' + i + ')">&#128203; 复制</button></div>'
-      + '</div></div>';
+function renderPgMessages(){
+  const container=$('pgMessages');const chat=pgState.chats[pgState.activeIdx];
+  if(!chat||chat.messages.length===0){container.innerHTML='<div class="pg-empty flex flex-col items-center justify-center h-full text-muted select-none"><div class="mb-3 opacity-60">'+ic('playground','ic-xl')+'</div><div class="text-sm font-medium mb-1">Kiro API 调试</div><div class="text-xs text-muted">选择一个模型，开始对话</div></div>';return;}
+  container.innerHTML=chat.messages.map((m,i)=>{
+    const role=m.role||'user';
+    const avatar=role==='user'?ic('user'):role==='assistant'?ic('bot'):ic('settings');
+    const content=formatPgContent(m.content||'');
+    const reasoning=m.reasoning||'';const tokens=m.tokens?(' | '+m.tokens+' tokens'):'';const time=m.time||'';
+    let reasoningHtml='';
+    if(reasoning){reasoningHtml='<div class="pg-reasoning-box mb-2 rounded-md overflow-hidden" style="border:1px solid color-mix(in srgb,var(--yellow) 30%,transparent);"><div class="pg-reasoning-header px-2.5 py-1.5 cursor-pointer flex justify-between items-center text-xs" style="background:color-mix(in srgb,var(--yellow) 8%,transparent);color:var(--yellow);" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span>'+ic('bulb')+' 推理过程</span><span>'+ic('chevron-down')+'</span></div><div class="pg-reasoning-body px-3 py-2 text-xs" style="background:color-mix(in srgb,var(--yellow) 3%,transparent);color:var(--muted);line-height:1.5;white-space:pre-wrap;max-height:200px;overflow-y:auto;">'+escHtml(reasoning)+'</div></div>';}
+    return '<div class="pg-msg mb-5 flex gap-2.5" style="max-width:88%;'+(role==='user'?'margin-left:auto;flex-direction:row-reverse;':'margin-right:auto;')+'">'
+      +'<div class="pg-msg-avatar flex items-center justify-center text-sm flex-shrink-0" style="width:30px;height:30px;border-radius:6px;background:'+(role==='user'?'var(--accent)':'#10b981')+';color:#fff;">'+avatar+'</div>'
+      +'<div class="pg-msg-content flex-1 min-w-0">'
+      +reasoningHtml
+      +'<div class="pg-msg-bubble px-3.5 py-2.5 rounded-xl text-xs" style="white-space:pre-wrap;word-wrap:break-word;line-height:1.6;'+(role==='user'?'background:var(--accent);color:#fff;border-bottom-right-radius:4px;':'background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px;')+'">'+content+'</div>'
+      +'<div class="pg-msg-meta text-xs text-muted mt-1 flex items-center gap-2"><span>'+time+tokens+'</span><button class="pg-msg-copy text-xs text-muted cursor-pointer bg-transparent border-none p-0" onclick="copyPgMsg('+i+')">'+ic('copy')+' 复制</button></div>'
+      +'</div></div>';
   }).join('');
-  // Scroll to bottom
-  setTimeout(() => { container.scrollTop = container.scrollHeight; }, 50);
+  setTimeout(()=>{container.scrollTop=container.scrollHeight;},50);
 }
-
-function formatPgContent(text) {
-  // Simple markdown-like formatting
-  let html = escHtml(text);
-  // Code blocks
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Bold
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-  // Newlines to <br> for non-pre content
-  // Already handled by white-space: pre-wrap
+function formatPgContent(text){
+  let html=escHtml(text);
+  html=html.replace(/```(\w*)\n([\s\S]*?)```/g,'<pre style="background:var(--input-bg);padding:10px 12px;border-radius:6px;overflow-x:auto;font-size:11px;line-height:1.5;margin:8px 0;border:1px solid var(--border);"><code>$2</code></pre>');
+  html=html.replace(/`([^`]+)`/g,'<code style="font-family:Courier New,monospace;font-size:11px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;">$1</code>');
+  html=html.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
   return html;
 }
+function copyPgMsg(idx){const chat=pgState.chats[pgState.activeIdx];if(!chat||!chat.messages[idx])return;copyToClipboard(chat.messages[idx].content||'');toast('已复制');}
 
-function copyPgMsg(idx) {
-  const chat = pgState.chats[pgState.activeIdx];
-  if (!chat || !chat.messages[idx]) return;
-  copyToClipboard(chat.messages[idx].content || '');
-  toast('已复制');
-}
+function pgInputKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPgMessage();}}
+function togglePgStream(){pgStreaming=!pgStreaming;const chip=$('pgChipStream');chip.classList.toggle('active');if(pgStreaming){chip.style.background='color-mix(in srgb,var(--accent) 12%,transparent)';chip.style.borderColor='var(--accent)';chip.style.color='var(--accent)';}else{chip.style.background='rgba(255,255,255,.04)';chip.style.borderColor='var(--border)';chip.style.color='var(--muted)';}}
+function togglePgReasoning(){pgShowReasoning=!pgShowReasoning;const chip=$('pgChipReasoning');chip.classList.toggle('active');if(pgShowReasoning){chip.style.background='color-mix(in srgb,var(--accent) 12%,transparent)';chip.style.borderColor='var(--accent)';chip.style.color='var(--accent)';}else{chip.style.background='rgba(255,255,255,.04)';chip.style.borderColor='var(--border)';chip.style.color='var(--muted)';}}
 
-// ---- Sending Messages ----
-function pgInputKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendPgMessage();
-  }
-}
+async function sendPgMessage(){
+  const input=$('pgInput');const content=input.value.trim();if(!content)return;
+  if(pgState.activeIdx<0||pgState.activeIdx>=pgState.chats.length)newPgChat();
+  const chat=pgState.chats[pgState.activeIdx];const model=$('pgModel').value||'auto-kiro';const systemPrompt=$('pgSystemPrompt').value.trim();const key=$('pgKey').value;const url=$('pgUrl').value;
+  chat.messages.push({role:'user',content:content,time:new Date().toLocaleTimeString('zh-CN')});
+  if(chat.messages.filter(m=>m.role==='user').length===1)chat.title=content.slice(0,30)+(content.length>30?'...':'');
+  pgSaveState(pgState);renderPgHistory();renderPgMessages();input.value='';input.style.height='auto';$('pgSendBtn').disabled=true;
+  const msgs=[];if(systemPrompt)msgs.push({role:'system',content:systemPrompt});
+  chat.messages.forEach(m=>{if(m.role==='user'||m.role==='assistant')msgs.push({role:m.role,content:m.content});});
+  const msgContainer=$('pgMessages');
+  const loadingEl=document.createElement('div');loadingEl.className='pg-msg assistant mb-5 flex gap-2.5';loadingEl.style.maxWidth='88%';loadingEl.style.marginRight='auto';
+  msgContainer.appendChild(loadingEl);msgContainer.scrollTop=msgContainer.scrollHeight;
 
-function togglePgStream() {
-  pgStreaming = !pgStreaming;
-  $('pgChipStream').classList.toggle('active', pgStreaming);
-}
-
-function togglePgReasoning() {
-  pgShowReasoning = !pgShowReasoning;
-  $('pgChipReasoning').classList.toggle('active', pgShowReasoning);
-}
-
-async function sendPgMessage() {
-  const input = $('pgInput');
-  const content = input.value.trim();
-  if (!content) return;
-
-  // Ensure active chat exists
-  if (pgState.activeIdx < 0 || pgState.activeIdx >= pgState.chats.length) {
-    newPgChat();
-  }
-
-  const chat = pgState.chats[pgState.activeIdx];
-  const model = $('pgModel').value || 'auto-kiro';
-  const systemPrompt = $('pgSystemPrompt').value.trim();
-  const key = $('pgKey').value;
-  const url = $('pgUrl').value;
-
-  // Add user message
-  chat.messages.push({ role: 'user', content: content, time: new Date().toLocaleTimeString('zh-CN') });
-  // Update title from first user message
-  if (chat.messages.filter(m => m.role === 'user').length === 1) {
-    chat.title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
-  }
-  pgSaveState(pgState);
-  renderPgHistory();
-  renderPgMessages();
-  input.value = '';
-  input.style.height = 'auto';
-  $('pgSendBtn').disabled = true;
-
-  // Build messages array
-  const msgs = [];
-  if (systemPrompt) {
-    msgs.push({ role: 'system', content: systemPrompt });
-  }
-  // Add conversation history
-  chat.messages.forEach(m => {
-    if (m.role === 'user' || m.role === 'assistant') {
-      msgs.push({ role: m.role, content: m.content });
+  if(pgStreaming){
+    $('pgStopBtn').style.display='inline-block';$('pgSendBtn').style.display='none';
+    pgAbortController=new AbortController();
+    let fullContent='',fullReasoning='',pgRafPending=false;
+    loadingEl.innerHTML='<div class="pg-msg-avatar flex items-center justify-center text-sm flex-shrink-0" style="width:30px;height:30px;border-radius:6px;background:#10b981;color:#fff;">&#129302;</div><div class="pg-msg-content flex-1 min-w-0"><div class="pg-reasoning-box mb-2 rounded-md overflow-hidden hidden" id="pgLiveReasoningBox" style="border:1px solid color-mix(in srgb,var(--yellow) 30%,transparent);"><div class="pg-reasoning-header px-2.5 py-1.5 cursor-pointer flex justify-between items-center text-xs" style="background:color-mix(in srgb,var(--yellow) 8%,transparent);color:var(--yellow);" onclick="this.nextElementSibling.classList.toggle(\'hidden\')"><span>&#128161; 推理过程</span><span>&#9660;</span></div><div class="pg-reasoning-body px-3 py-2 text-xs" id="pgLiveReasoning" style="background:color-mix(in srgb,var(--yellow) 3%,transparent);color:var(--muted);line-height:1.5;white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div></div><div class="pg-msg-bubble px-3.5 py-2.5 rounded-xl text-xs" id="pgLiveBubble" style="background:var(--card);border:1px solid var(--border);border-bottom-left-radius:4px;line-height:1.6;white-space:pre-wrap;"><span class="spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span></div><div class="pg-msg-meta text-xs text-muted mt-1">流式输出中...</div></div>';
+    function pgFlushLive(){
+      pgRafPending=false;
+      var b=document.getElementById('pgLiveBubble'),re=document.getElementById('pgLiveReasoning'),rb=document.getElementById('pgLiveReasoningBox');
+      if(b)b.textContent=fullContent||'';
+      if(fullReasoning&&pgShowReasoning){if(rb)rb.classList.remove('hidden');if(re)re.textContent=fullReasoning;}
+      var mc=document.getElementById('pgMessages')||loadingEl.parentElement;if(mc)mc.scrollTop=mc.scrollHeight;
     }
-  });
-
-  // Add loading placeholder
-  const msgContainer = $('pgMessages');
-  const loadingEl = document.createElement('div');
-  loadingEl.className = 'pg-msg assistant';
-  loadingEl.innerHTML = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div><div class="pg-msg-content"><div class="pg-loading"><div class="pg-spinner"></div> 思考中...</div></div>';
-  msgContainer.appendChild(loadingEl);
-  msgContainer.scrollTop = msgContainer.scrollHeight;
-
-  if (pgStreaming) {
-    $('pgStopBtn').style.display = 'inline-block';
-    $('pgSendBtn').style.display = 'none';
-
-pgAbortController = new AbortController();
-    let fullContent = '';
-    let fullReasoning = '';
-    let pgRafPending = false;
-
-    // Build skeleton DOM once (avoids repeated innerHTML on every token)
-    loadingEl.innerHTML = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div>'
-      + '<div class="pg-msg-content">'
-      + '<div class="pg-reasoning-box" id="pgLiveReasoningBox" style="display:none;">'
-      + '<div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span>&#128161; 推理过程</span><span>&#9660;</span></div>'
-      + '<div class="pg-reasoning-body" id="pgLiveReasoning"></div></div>'
-      + '<div class="pg-msg-bubble" id="pgLiveBubble"><span class="pg-spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span></div>'
-      + '<div class="pg-msg-meta">流式输出中...</div></div>';
-
-    function pgFlushLive() {
-      pgRafPending = false;
-      var b = document.getElementById('pgLiveBubble');
-      var re = document.getElementById('pgLiveReasoning');
-      var rb = document.getElementById('pgLiveReasoningBox');
-      if (b) b.textContent = fullContent || '';
-      if (fullReasoning && pgShowReasoning) {
-        if (rb) rb.style.display = '';
-        if (re) re.textContent = fullReasoning;
-      }
-      var mc = document.getElementById('pgMessages') || loadingEl.parentElement;
-      if (mc) mc.scrollTop = mc.scrollHeight;
-    }
-
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + key,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: msgs,
-          stream: true
-        }),
-        signal: pgAbortController.signal
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 200));
-      }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buf += decoder.decode(value, { stream: true });
-        var lines = buf.split('\n');
-        buf = lines.pop() || '';
-
-        for (var i = 0; i < lines.length; i++) {
-          var line = lines[i];
-          if (line.indexOf('data: ') !== 0) continue;
-          var jd = line.slice(6).trim();
-          if (jd === '[DONE]') continue;
-
-          try {
-            var pj = JSON.parse(jd);
-            var d = pj.choices && pj.choices[0] ? pj.choices[0].delta : null;
-            if (d) {
-              if (d.content) fullContent += d.content;
-              if (d.reasoning_content) fullReasoning += d.reasoning_content;
-            }
-            if (!pgRafPending) { pgRafPending = true; requestAnimationFrame(pgFlushLive); }
-          } catch(e) {}
-        }
+    try{
+      const resp=await fetch(url,{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:model,messages:msgs,stream:true}),signal:pgAbortController.signal});
+      if(!resp.ok){const errText=await resp.text();throw new Error('HTTP '+resp.status+': '+errText.slice(0,200));}
+      const reader=resp.body.getReader();const decoder=new TextDecoder();let buf='';
+      while(true){const{done,value}=await reader.read();if(done)break;buf+=decoder.decode(value,{stream:true});var lines=buf.split('\n');buf=lines.pop()||'';
+        for(var i=0;i<lines.length;i++){var line=lines[i];if(line.indexOf('data: ')!==0)continue;var jd=line.slice(6).trim();if(jd==='[DONE]')continue;
+          try{var pj=JSON.parse(jd);var d=pj.choices&&pj.choices[0]?pj.choices[0].delta:null;if(d){if(d.content)fullContent+=d.content;if(d.reasoning_content)fullReasoning+=d.reasoning_content;}if(!pgRafPending){pgRafPending=true;requestAnimationFrame(pgFlushLive);}}catch(e){}}
       }
       pgFlushLive();
-    } catch(e) {
-      if (e.name === 'AbortError') {
-        fullContent += '\n\n[已停止]';
-      } else {
-        fullContent += '\n\n[错误: ' + e.message + ']';
-      }
-      pgFlushLive();
-    }$('pgStopBtn').style.display = 'none';
-    $('pgSendBtn').style.display = 'inline-block';
-
-    // Replace loading with final
-    loadingEl.remove();
-    chat.messages.push({
-      role: 'assistant',
-      content: fullContent,
-      reasoning: fullReasoning,
-      time: new Date().toLocaleTimeString('zh-CN'),
-      tokens: fullContent.length
-    });
-    pgSaveState(pgState);
-    renderPgMessages();
-  } else {
-    // Non-streaming
-    try {
-      const resp = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + key,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: msgs
-        })
-      });
-
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error('HTTP ' + resp.status + ': ' + errText.slice(0, 200));
-      }
-
-      const data = await resp.json();
-      const assistantContent = data.choices?.[0]?.message?.content || JSON.stringify(data);
-      const reasoning = data.choices?.[0]?.message?.reasoning_content || '';
-      loadingEl.remove();
-      chat.messages.push({
-        role: 'assistant',
-        content: assistantContent,
-        reasoning: reasoning,
-        time: new Date().toLocaleTimeString('zh-CN'),
-        tokens: assistantContent.length
-      });
-      pgSaveState(pgState);
-      renderPgMessages();
-    } catch(e) {
-      loadingEl.remove();
-      chat.messages.push({
-        role: 'assistant',
-        content: '[错误: ' + e.message + ']',
-        time: new Date().toLocaleTimeString('zh-CN')
-      });
-      pgSaveState(pgState);
-      renderPgMessages();
-    }
+    }catch(e){if(e.name==='AbortError')fullContent+='\n\n[已停止]';else fullContent+='\n\n[错误: '+e.message+']';pgFlushLive();}
+    $('pgStopBtn').style.display='none';$('pgSendBtn').style.display='inline-block';
+    loadingEl.remove();chat.messages.push({role:'assistant',content:fullContent,reasoning:fullReasoning,time:new Date().toLocaleTimeString('zh-CN'),tokens:fullContent.length});pgSaveState(pgState);renderPgMessages();
+  }else{
+    try{
+      const resp=await fetch(url,{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:model,messages:msgs})});
+      if(!resp.ok){const errText=await resp.text();throw new Error('HTTP '+resp.status+': '+errText.slice(0,200));}
+      const data=await resp.json();
+      const assistantContent=data.choices?.[0]?.message?.content||JSON.stringify(data);
+      const reasoning=data.choices?.[0]?.message?.reasoning_content||'';
+      loadingEl.remove();chat.messages.push({role:'assistant',content:assistantContent,reasoning:reasoning,time:new Date().toLocaleTimeString('zh-CN'),tokens:assistantContent.length});pgSaveState(pgState);renderPgMessages();
+    }catch(e){loadingEl.remove();chat.messages.push({role:'assistant',content:'[错误: '+e.message+']',time:new Date().toLocaleTimeString('zh-CN')});pgSaveState(pgState);renderPgMessages();}
   }
-
-  $('pgSendBtn').disabled = false;
-  pgAbortController = null;
+  $('pgSendBtn').disabled=false;pgAbortController=null;
 }
 
-function updateLiveResponse(loadingEl, reasoning, content) {
-  let html = '<div class="pg-msg-avatar" style="background:#10b981;color:#fff;">&#129302;</div>';
-  html += '<div class="pg-msg-content">';
-  if (reasoning && pgShowReasoning) {
-    html += '<div class="pg-reasoning-box"><div class="pg-reasoning-header" onclick="this.nextElementSibling.classList.toggle(\'collapsed\')"><span>&#128161; 推理过程</span><span>&#9660;</span></div>';
-    html += '<div class="pg-reasoning-body">' + escHtml(reasoning) + '</div></div>';
-  }
-  html += '<div class="pg-msg-bubble">' + formatPgContent(content) + (content ? '' : '<span class="pg-spinner" style="display:inline-block;width:12px;height:12px;border-width:2px;margin-right:4px;"></span>') + '</div>';
-  html += '<div class="pg-msg-meta">流式输出中...</div>';
-  html += '</div>';
-  loadingEl.innerHTML = html;
-  const container = $('pgMessages');
-  container.scrollTop = container.scrollHeight;
-}
+function stopPgStream(){if(pgAbortController){pgAbortController.abort();pgAbortController=null;}}
 
-function stopPgStream() {
-  if (pgAbortController) {
-    pgAbortController.abort();
-    pgAbortController = null;
-  }
-}
+/* ===== Page switch override for playground/console ===== */
+const _origSwitchPage=switchPage;
+switchPage=function(name){_origSwitchPage(name);if(name==='playground')initPlayground();if(name==='console')loadConsole();};
 
-// ---- Init on page switch ----
-const origSwitchPage = switchPage;
-switchPage = function(name) {
-  origSwitchPage(name);
-  if (name === 'playground') {
-    initPlayground();
-  }
-  if (name === 'console') {
-    loadConsole();
-  }
-};
-
-// Auto-resize textarea
-(function() {
-  const ta = $('pgInput');
-  if (ta) {
-    ta.addEventListener('input', function() {
-      this.style.height = 'auto';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
-  }
-})();
-
-// Auto-init on page load
-switchPage('accounts');
+/* ===== Auto-resize textarea ===== */
+(function(){const ta=$('pgInput');if(ta)ta.addEventListener('input',function(){this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px';});})();
 </script>
 </body>
 </html>
