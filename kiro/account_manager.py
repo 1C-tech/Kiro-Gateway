@@ -805,6 +805,7 @@ class AccountManager:
                     self._dirty = True
             except ValueError:
                 pass
+
     
     async def report_failure(
         self,
@@ -864,7 +865,7 @@ class AccountManager:
             # GLOBAL STICKY: Do NOT change _current_account_index on failure
             # It only changes on success (GLOBAL sticky behavior)
             # Failover happens through exclude_accounts in get_next_account()
-    
+        
     def get_first_account(self) -> Account:
         """
         Get first initialized account (for legacy mode).

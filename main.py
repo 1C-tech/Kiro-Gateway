@@ -44,6 +44,7 @@ import asyncio
 import json
 import logging
 import sys
+import time
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -335,6 +336,9 @@ async def lifespan(app: FastAPI):
     """
     logger.info("Starting application... Creating state managers.")
     
+    # Record start time for uptime calculation
+    app.state._start_time = time.time()
+    
     # Create shared HTTP client with connection pooling
     # This reduces memory usage and enables connection reuse across requests
     # Limits: max 100 total connections, max 20 keep-alive connections
@@ -480,7 +484,7 @@ async def lifespan(app: FastAPI):
     start_index = app.state.account_manager._current_account_index
     
     # Try to initialize accounts (full circle)
-    initialized = False
+    initialized = 0
     
     for i in range(len(all_accounts)):
         current_index = (start_index + i) % len(all_accounts)
@@ -492,12 +496,12 @@ async def lifespan(app: FastAPI):
         
         if success:
             logger.info(f"Successfully initialized account: {account_id}")
-            initialized = True
-            break
+            initialized += 1
         else:
             logger.warning(f"Failed to initialize account: {account_id}")
     
-    if not initialized:
+    logger.info(f"Initialized {initialized}/{len(all_accounts)} accounts")
+    if initialized == 0:
         logger.error("Failed to initialize any account. Check your credentials.")
         raise RuntimeError("Failed to initialize any account")
     
@@ -734,6 +738,53 @@ def print_startup_banner(host: str, port: int) -> None:
     print()
 
 
+
+
+
+# --- PID Lock ---
+# Prevents duplicate gateway processes by writing a PID file.
+# Checks if an existing process on the same port is still alive.
+
+def _pid_lock(port: int) -> None:
+    """Prevent duplicate gateway processes on the same port."""
+    import os
+    import sys
+    import atexit
+    
+    pid_file = f"/tmp/kiro-gateway-{port}.pid"
+    
+    if os.path.exists(pid_file):
+        try:
+            with open(pid_file) as f:
+                old_pid = int(f.read().strip())
+            if os.path.isdir(f"/proc/{old_pid}"):
+                try:
+                    with open(f"/proc/{old_pid}/cmdline") as f:
+                        cmd = f.read()
+                    if 'kiro-gateway' in cmd or 'main.py' in cmd:
+                        print(f"ERROR: Gateway already running (PID {old_pid}) on port {port}")
+                        print(f"  Kill it first: kill {old_pid}")
+                        sys.exit(1)
+                except (IOError, OSError):
+                    pass
+        except (ValueError, IOError, OSError):
+            pass
+    
+    with open(pid_file, 'w') as f:
+        f.write(str(os.getpid()))
+    
+    def _cleanup():
+        try:
+            if os.path.exists(pid_file):
+                curr = open(pid_file).read().strip()
+                if curr == str(os.getpid()):
+                    os.remove(pid_file)
+        except (IOError, OSError):
+            pass
+    
+    atexit.register(_cleanup)
+
+
 # --- Entry Point ---
 if __name__ == "__main__":
     import uvicorn
@@ -749,6 +800,7 @@ if __name__ == "__main__":
     
     # Resolve final configuration with priority hierarchy
     final_host, final_port = resolve_server_config(args)
+    _pid_lock(final_port)
     
     # Print startup banner
     print_startup_banner(final_host, final_port)

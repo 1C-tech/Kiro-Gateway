@@ -31,3 +31,6 @@ requests/
 .pytest_cache/
 .coverage
 htmlcov/
+# Server runtime files
+admin_settings.json
+gateway.log

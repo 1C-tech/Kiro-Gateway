@@ -53,6 +53,7 @@ from kiro.streaming_anthropic import (
 from kiro.http_client import KiroHttpClient
 from kiro.utils import generate_conversation_id
 from kiro.tokenizer import estimate_request_tokens
+from kiro.stats_collector import StatsCollector
 from kiro.config import WEB_SEARCH_ENABLED
 from kiro.mcp_tools import handle_native_web_search
 
@@ -424,6 +425,17 @@ async def messages(
             else:
                 system_for_tokenizer = request_data.system
             
+            # Estimate input tokens for console stats
+            try:
+                req_tok_stats = estimate_request_tokens(
+                    messages=messages_for_tokenizer,
+                    tools=tools_for_tokenizer,
+                    system_prompt=system_for_tokenizer,
+                )
+                input_tokens_est = req_tok_stats["total_tokens"]
+            except Exception:
+                input_tokens_est = 0
+            
             try:
                 # Make request to Kiro API
                 response = await http_client.request_with_retry(
@@ -438,6 +450,22 @@ async def messages(
                     await account_manager.report_success(account.id, request_data.model)
                     
                     if request_data.stream:
+                        # Record to console stats (streaming)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="success",
+                                status_code=200,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
+                        
                         # Streaming mode
                         async def stream_wrapper():
                             streaming_error = None
@@ -507,6 +535,24 @@ async def messages(
                             request_system=system_for_tokenizer,
                         )
                         
+                        # Record to console stats (non-streaming)
+                        try:
+                            usage = anthropic_response.get("usage", {}) if isinstance(anthropic_response, dict) else {}
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="success",
+                                status_code=200,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=usage.get("input_tokens", input_tokens_est),
+                                output_tokens=usage.get("output_tokens", 0),
+                            )
+                        except Exception:
+                            pass
+                        
                         await http_client.close()
                         logger.info(f"HTTP 200 - POST /v1/messages (non-streaming) - completed")
                         
@@ -549,6 +595,22 @@ async def messages(
                             response.status_code, error_reason
                         )
                         
+                        # Record to console stats (FATAL)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="fail",
+                                status_code=response.status_code,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
+                        
                         logger.warning(f"HTTP {response.status_code} - POST /v1/messages - {last_error_message[:100]}")
                         
                         if debug_logger:
@@ -571,6 +633,22 @@ async def messages(
                             account.id, request_data.model, error_type,
                             response.status_code, error_reason
                         )
+                        
+                        # Record to console stats (RECOVERABLE)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="fail",
+                                status_code=response.status_code,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
                         
                         # Single account - no point in failover, break immediately
                         if len(all_accounts) == 1:

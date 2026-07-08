@@ -55,6 +55,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .account-card .detail span { color: var(--text); }
 .account-card .bar-bg { height: 4px; background: #2a2d3e; border-radius: 2px; margin-top: 6px; overflow: hidden; }
 .account-card .bar-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.account-card .quota-bar-bg { height: 6px; background: #2a2d3e; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.account-card .quota-bar-fill { height: 100%; border-radius: 3px; transition: width .3s; }
+.account-card .quota-info { font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; justify-content: space-between; }
+.account-card .quota-info .used { color: var(--text); }
+.account-card .quota-info .remaining { color: var(--green); }
+.account-card .quota-info .remaining.low { color: var(--yellow); }
+.account-card .quota-info .remaining.empty { color: var(--red); }
 .models-section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 20px; }
 .models-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .model-tag { padding: 3px 9px; background: rgba(59,130,246,.12); color: var(--blue); border-radius: 12px; font-size: 12px; }
@@ -65,6 +72,25 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .badge.healthy { background: rgba(34,197,94,.15); color: var(--green); }
 .badge.degraded { background: rgba(234,179,8,.15); color: var(--yellow); }
 .badge.cooldown { background: rgba(239,68,68,.15); color: var(--red); }
+.account-card.sticky { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.account-card.sticky .sticky-badge { display: inline-block; background: var(--blue); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.account-card .cooldown-timer
+.card-sub-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; gap: 6px; }
+.card-plan-badge { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(59,130,246,.12); color: var(--blue); font-weight: 500; white-space: nowrap; letter-spacing: .3px; }
+.card-req-stats { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.card-req-stats .req-ok { color: #22c55e; font-weight: 600; margin-right: 8px; }
+.card-req-stats .req-fail { color: #ef4444; font-weight: 600; }
+.filter-bar { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; }
+.filter-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-bar select, .filter-bar input[type=text] { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; color: var(--text); outline: none; }
+.filter-bar select:focus, .filter-bar input[type=text]:focus { border-color: var(--blue); }
+.filter-bar label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.filter-bar input[type=range] { width: 70px; accent-color: var(--blue); }
+.filter-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; font-size: 11px; color: var(--muted); cursor: pointer; }
+.filter-btn:hover { border-color: var(--blue); color: var(--text); }
+.filter-btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.filter-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+ { font-size: 11px; color: var(--red); display: inline-block; }
 .badge.pending { background: rgba(139,143,163,.15); color: var(--muted); }
 .badge.idle { background: rgba(139,143,163,.15); color: var(--muted); }
 .badge.proxy-on { background: rgba(59,130,246,.15); color: var(--blue); }
@@ -221,11 +247,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div class="nav-item active" data-page="accounts" onclick="switchPage('accounts')">
       <span class="icon">&#128202;</span> 账号池管理
     </div>
-    <div class="nav-item" data-page="settings" onclick="switchPage('settings')">
-      <span class="icon">&#9881;</span> 设置
-    </div>
     <div class="nav-item" data-page="playground" onclick="switchPage('playground')">
       <span class="icon">&#128172;</span> 调试
+    </div>
+    <div class="nav-item" data-page="console" onclick="switchPage('console')">
+      <span class="icon">&#128200;</span> 控制台
+    </div>
+    <div class="nav-item" data-page="settings" onclick="switchPage('settings')">
+      <span class="icon">&#9881;</span> 设置
     </div>
   </div>
 </div>
@@ -242,6 +271,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <button class="btn btn-yellow" onclick="triggerJsonImport()">导入JSON</button>
       <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="handleJsonFile(event)">
       <button class="btn btn-ghost" onclick="refresh()">刷新</button>
+      <button class="btn btn-ghost" id="refreshCreditsBtn" onclick="refreshCredits()">刷新额度</button>
+      <button class="btn btn-ghost" id="checkAlivenessBtn" onclick="checkAliveness()">测活</button>
     </div>
   </div>
 
@@ -267,7 +298,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         <button class="btn btn-sm" onclick="showBatchDeleteConfirm()" style="background:var(--red);color:#fff;">&#128465; 删除</button>
       </div>
     </div>
-    <div class="accounts-grid" id="accountsGrid"></div>
+    
+    <div id="filterBar" class="filter-bar" style="display:none;">
+      <div class="filter-row">
+        <select id="filterStatus" onchange="applyFilter()">
+          <option value="">全部状态</option>
+          <option value="healthy">正常</option>
+          <option value="cooldown">冷却中</option>
+          <option value="degraded">异常</option>
+          <option value="pending">待初始化</option>
+        </select>
+        <select id="filterSub" onchange="applyFilter()">
+          <option value="">全部订阅</option>
+          <option value="Free">Free</option>
+          <option value="KIRO FREE">KIRO FREE</option>
+        </select>
+        <input type="text" id="filterDomain" placeholder="邮箱域名 (outlook.de)" oninput="applyFilter()" style="width:130px;">
+        <label><input type="checkbox" id="filterHasModels" onchange="applyFilter()"> 有模型</label>
+        <label>额度 <input type="range" id="filterUsage" min="0" max="100" value="0" oninput="applyFilter();$('filterUsageLabel').textContent=this.value+'%'"> <span id="filterUsageLabel">0%</span></label>
+        <button class="filter-btn" onclick="quickFilter('healthy')">正常</button>
+        <button class="filter-btn" onclick="quickFilter('degraded')">异常</button>
+        <button class="filter-btn" onclick="quickFilter('nomodels')">无模型</button>
+        <button class="filter-btn" onclick="resetFilter()" style="color:var(--red);">↺ 重置</button>
+        <span class="filter-count" id="filterCount"></span>
+      </div>
+    </div>
+<div class="accounts-grid" id="accountsGrid"></div>
     <div class="section-header">
       <h2>&#129302; 可用模型</h2>
       <span style="font-size:13px;color:var(--muted)" id="modelCount"></span>
@@ -329,6 +385,84 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
 
     <div style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">修改 Admin API Key 后页面会自动使用新 Key，无需重新登录。</div>
+  </div>
+
+  <!-- Page: Console -->
+  <div class="page" id="page-console">
+    <style>
+      .cnsl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+      .cnsl-header h2{font-size:18px;font-weight:600;}
+      .cnsl-scale{display:flex;gap:4px;}
+      .cnsl-scale .sbtn{padding:4px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);}
+      .cnsl-scale .sbtn:hover{border-color:var(--blue);color:var(--text);}
+      .cnsl-scale .sbtn.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+      .cnsl-chart-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px;}
+      .cnsl-chart-title{font-size:13px;font-weight:500;margin-bottom:12px;color:var(--muted);}
+      .cnsl-bars{display:flex;align-items:flex-end;gap:3px;height:160px;}
+      .cnsl-bar{flex:1;min-width:8px;border-radius:3px 3px 0 0;position:relative;cursor:pointer;}
+      .cnsl-bar .tip{display:none;position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1a1d2e;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:11px;white-space:nowrap;z-index:10;margin-bottom:4px;pointer-events:none;}
+      .cnsl-bar:hover .tip{display:block;}
+      .cnsl-xlabels{display:flex;margin-top:6px;}
+      .cnsl-xlabels span{flex:1;text-align:center;font-size:10px;color:var(--muted);}
+      .cnsl-totals{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+      .cnsl-total-item{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;flex:1;min-width:120px;}
+      .cnsl-total-item .lbl{font-size:11px;color:var(--muted);}
+      .cnsl-total-item .val{font-size:20px;font-weight:700;margin-top:2px;}
+      .cnsl-logs-section{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);}
+      .cnsl-logs-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);}
+      .cnsl-logs-header h3{font-size:14px;font-weight:600;}
+      .cnsl-logs-ctrl{display:flex;gap:6px;align-items:center;}
+      .cnsl-logs-ctrl .logbtn{padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);}
+      .cnsl-logs-ctrl .logbtn:hover{border-color:var(--blue);color:var(--text);}
+      .cnsl-logs-ctrl .logbtn.active{background:var(--green);color:#fff;border-color:var(--green);}
+      .cnsl-log-count{font-size:11px;color:var(--muted);}
+      .cnsl-log-table{width:100%;border-collapse:collapse;font-size:12px;}
+      .cnsl-log-table th{text-align:left;padding:8px 12px;font-weight:500;color:var(--muted);border-bottom:1px solid var(--border);font-size:11px;white-space:nowrap;}
+      .cnsl-log-table td{padding:8px 12px;border-bottom:1px solid rgba(42,45,62,.3);vertical-align:top;}
+      .cnsl-log-table tr:hover td{background:rgba(255,255,255,.02);}
+      .cnsl-log-table .log-detail{font-size:11px;color:var(--muted);line-height:1.4;max-height:0;overflow:hidden;transition:max-height .25s;padding:0 12px;}
+      .cnsl-log-table tr.expanded .log-detail{max-height:300px;padding:8px 12px;}
+      .cnsl-log-table .log-body{white-space:pre-wrap;word-break:break-all;font-family:monospace;font-size:10px;max-height:100px;overflow-y:auto;background:rgba(0,0,0,.2);border-radius:4px;padding:4px 6px;margin-top:4px;}
+      .cnsl-status-ok{color:var(--green);font-weight:600;}
+      .cnsl-status-fail{color:var(--red);font-weight:600;}
+      .cnsl-status-proc{color:var(--yellow);font-weight:600;}
+      .cnsl-col-url{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    </style>
+    <div class="cnsl-header">
+      <h2>&#128200; 请求控制台</h2>
+      <div class="cnsl-scale">
+        <span class="sbtn active" data-scale="day" onclick="switchConsoleScale('day',this)">小时</span>
+        <span class="sbtn" data-scale="week" onclick="switchConsoleScale('week',this)">天</span>
+        <span class="sbtn" data-scale="month" onclick="switchConsoleScale('month',this)">周</span>
+      </div>
+    </div>
+    <div class="cnsl-totals" id="cnslTotals"></div>
+    <div class="cnsl-chart-wrap">
+      <div class="cnsl-chart-title">请求数</div>
+      <div class="cnsl-bars" id="cnslBars"></div>
+      <div class="cnsl-xlabels" id="cnslXLabels"></div>
+    </div>
+    <div class="cnsl-logs-section">
+      <div class="cnsl-logs-header">
+        <h3>&#128214; 实时光日志</h3>
+        <div class="cnsl-logs-ctrl">
+          <span class="cnsl-log-count" id="cnslLogCount"></span>
+          <span class="logbtn" onclick="clearConsoleLogs()">&#128465; 清空</span>
+          <span class="logbtn active" id="cnslAutoBtn" onclick="toggleConsoleAuto()">&#9654; 自动</span>
+        </div>
+      </div>
+      <table class="cnsl-log-table" id="cnslLogTable">
+        <thead><tr>
+          <th style="width:60px;">时间</th>
+          <th>模型</th>
+          <th>状态</th>
+          <th class="cnsl-col-url">URL</th>
+          <th style="width:50px;">延时</th>
+          <th style="width:40px;"></th>
+        </tr></thead>
+        <tbody id="cnslLogBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Page: Playground -->
@@ -517,6 +651,96 @@ function switchPage(name) {
 }
 
 // ---- Dashboard ----
+
+// ===== Filter state & functions =====
+let _dashboardData = null;
+
+function applyFilter() {
+  const bar = $('filterBar');
+  if (!_dashboardData) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+
+  const status = $('filterStatus').value;
+  const sub = $('filterSub').value;
+  const domain = $('filterDomain').value.toLowerCase().trim();
+  const usageMin = parseInt($('filterUsage').value) || 0;
+  const hasModels = $('filterHasModels').checked;
+
+  let visible = 0;
+  _dashboardData.accounts.forEach(function(a) {
+    var card = document.querySelector('.account-card[data-account-id="' + a.id + '"]');
+    if (!card) return;
+
+    var show = true;
+    if (status && a.status !== status) show = false;
+    if (sub && a.subscription !== sub) show = false;
+    if (domain) {
+      var atIdx = (a.email || '').indexOf('@');
+      var dom = atIdx >= 0 ? a.email.substring(atIdx + 1) : '';
+      if (dom.indexOf(domain) === -1) show = false;
+    }
+    if (hasModels && (!Array.isArray(a.models) || a.models.length === 0)) show = false;
+    if (usageMin > 0 && a.creditLimit > 0) {
+      var pct = Math.round(a.creditUsed / a.creditLimit * 100);
+      if (pct < usageMin) show = false;
+    }
+
+    card.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  $('filterCount').textContent = visible + '/' + _dashboardData.accounts.length;
+}
+
+function resetFilter() {
+  $('filterStatus').value = '';
+  $('filterSub').value = '';
+  $('filterDomain').value = '';
+  $('filterHasModels').checked = false;
+  $('filterUsage').value = 0;
+  $('filterUsageLabel').textContent = '0%';
+  // Reset quick filter buttons
+  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  applyFilter();
+}
+
+function quickFilter(type) {
+  resetFilter();
+  if (type === 'healthy') {
+    $('filterStatus').value = 'healthy';
+  } else if (type === 'degraded') {
+    $('filterStatus').value = 'degraded';
+  } else if (type === 'nomodels') {
+    $('filterHasModels').checked = true;
+    // Invert the logic for "无模型": show those WITHOUT models
+    // We temporarily override applyFilter behavior:
+    _quickNoModels = true;
+  }
+  applyFilter();
+  // Highlight active button
+  document.querySelectorAll('.filter-btn').forEach(function(b) {
+    b.classList.toggle('active', b.textContent.indexOf(type === 'nomodels' ? '无模型' : (type === 'healthy' ? '正常' : '异常')) >= 0);
+  });
+}
+
+let _quickNoModels = false;
+// Override: patch the hasModels check for "无模型"
+var _origApply = applyFilter;
+applyFilter = function() {
+  _origApply();
+  if (_quickNoModels) {
+    _quickNoModels = false;
+    _dashboardData.accounts.forEach(function(a) {
+      var card = document.querySelector('.account-card[data-account-id="' + a.id + '"]');
+      if (!card) return;
+      var hasM = Array.isArray(a.models) && a.models.length > 0;
+      if (hasM) card.style.display = 'none';
+    });
+    var visible = 0;
+    document.querySelectorAll('.account-card').forEach(function(c) { if (c.style.display !== 'none') visible++; });
+    $('filterCount').textContent = visible + '/' + _dashboardData.accounts.length;
+  }
+};
+
 function refresh() {
   Promise.all([
     fetch('/admin/api/dashboard', { headers: headers() }).then(r => r.json()),
@@ -526,10 +750,59 @@ function refresh() {
     renderModels(models);
     $('lastUpdate').textContent = '最后更新: ' + new Date().toLocaleTimeString('zh-CN');
   }).catch(e => {
-    $('lastUpdate').textContent = '加载失败: ' + e.message;
-    $('statusBadge').textContent = '连接失败';
+    $('lastUpdate').textContent = '刷新失败: ' + e.message;
+    $('statusBadge').textContent = '刷新失败';
     $('statusBadge').className = 'badge cooldown';
   });
+}
+
+function refreshCredits() {
+  const btn = $('refreshCreditsBtn');
+  btn.disabled = true;
+  btn.textContent = '额度刷新中...';
+  fetch('/admin/api/accounts/refresh-credits', { method: 'POST', headers: headers() })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        toast('额度刷新完成: ' + data.ok + '/' + data.total + ' 成功, ' + data.fail + ' 失败');
+        refresh(); // also refresh the dashboard
+      } else {
+        toast('额度刷新失败');
+      }
+    })
+    .catch(e => {
+      toast('额度刷新请求失败: ' + e.message);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '刷新额度';
+    });
+}
+
+function checkAliveness() {
+  const btn = $('checkAlivenessBtn');
+  btn.disabled = true;
+  btn.textContent = '测活中...';
+  fetch('/admin/api/accounts/check-aliveness', { method: 'POST', headers: headers() })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const alive = data.alive || 0;
+        const dead = data.dead || 0;
+        toast('测活完成: ' + alive + ' 存活 / ' + dead + ' 失效 (共' + data.total + '个)');
+        // Show details in a modal or just update the dashboard
+        refresh();
+      } else {
+        toast('测活请求失败');
+      }
+    })
+    .catch(e => {
+      toast('测活请求失败: ' + e.message);
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = '测活';
+    });
 }
 
 function renderDashboard(d) {
@@ -563,40 +836,50 @@ function renderDashboard(d) {
   const healthy = d.accounts.filter(a => a.status === 'healthy').length;
   const degraded = d.accounts.filter(a => a.status === 'degraded' || a.status === 'cooldown').length;
   $('accountSummary').textContent = healthy + ' 正常 / ' + degraded + ' 异常';
+  _dashboardData = d;
 
-  $('accountsGrid').innerHTML = d.accounts.map(a => {
+  $('accountsGrid').innerHTML = d.accounts.map((a, idx) => {
     const sc = a.status === 'healthy' ? 'healthy' : (a.status === 'cooldown' ? 'cooldown' : (a.status === 'pending' ? 'pending' : 'degraded'));
     const statusMap = { 'healthy': '正常', 'cooldown': '冷却中', 'degraded': '异常', 'pending': '等待初始化' };
     const sl = statusMap[a.status] || '未知';
+    const cdLeft = a.cooldown_until > Math.floor(Date.now()/1000) ? Math.max(0, Math.floor(a.cooldown_until - Date.now()/1000)) : 0;
     const bc = a.status === 'healthy' ? '#22c55e' : a.status === 'cooldown' ? '#ef4444' : a.status === 'pending' ? '#8b8fa3' : '#eab308';
 
     // Show real file data + runtime stats
     const email = a.email || '-';
     const sub = a.subscription || '-';
-    const region = a.region || '?';
-    const runtimeInfo = a.models > 0 ? '模型: ' + a.models : '';
-    const statsInfo = a.stats.total > 0 ? '请求: ' + a.stats.total : '';
-    const barHtml = a.stats.total > 0
-      ? '<div class="bar-bg"><div class="bar-fill" style="width:' + Math.round(a.stats.success / a.stats.total * 100) + '%;background:' + bc + '"></div></div>'
-      : '';
 
-    return '<div class="account-card" data-account-id="' + a.id + '">'
+    return '<div class="account-card"' + (d.gateway && d.gateway.current_account_index === idx ? ' sticky' : '') + ' data-account-id="' + a.id + '">'
       + '<div class="top">'
       + '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1;">'
       + '<input type="checkbox" class="acct-checkbox" data-id="' + a.id + '" onchange="updateBatchBar()">'
-      + '<span class="name">' + a.id + '</span>'
+      + '<span class="name">' + email + '</span>' + (d.gateway && d.gateway.current_account_index === idx ? '<span class="sticky-badge"> Sticky</span>' : '')
       + '</label>'
-      + '<span class="badge ' + sc + '">' + sl + '</span>'
+      + '<span class="badge ' + sc + '">' + sl + '</span>' + (cdLeft > 0 ? '<span class="cooldown-timer" data-cooldown="' + a.cooldown_until + '"> [' + cdLeft + 's]</span>' : '')
       + '</div>'
-      + '<div class="detail" style="font-size:11px;">' + email + ' | ' + sub + '</div>'
-      + '<div class="detail">区域: <span>' + region + '</span>'
-      + (runtimeInfo ? ' | ' + runtimeInfo : '')
-      + (statsInfo ? ' | ' + statsInfo : '')
-      + ' | 失败: <span>' + a.failures + '</span></div>'
-      + barHtml
+      + '<div class="card-sub-row">' + sub + '</div>'
+      + '<div class="card-req-stats"><span class="req-ok">OK ' + a.stats.success + '</span><span class="req-fail">FAIL ' + a.stats.failed + '</span></div>'
+      + (a.creditLimit > 0
+        ? '<div class="quota-info"><span>配额: <span class="used">' + a.creditUsed + ' / ' + a.creditLimit + '</span></span><span class="remaining' + (a.creditLimit - a.creditUsed <= 0 ? ' empty' : a.creditUsed / a.creditLimit > 0.8 ? ' low' : '') + '">剩余 ' + (a.creditLimit - a.creditUsed) + '</span></div><div class="quota-bar-bg"><div class="quota-bar-fill" style="width:' + Math.min(100, Math.round(a.creditUsed / a.creditLimit * 100)) + '%;background:' + (a.creditUsed / a.creditLimit > 0.8 ? '#ef4444' : a.creditUsed / a.creditLimit > 0.5 ? '#eab308' : '#22c55e') + '"></div></div>'
+        : (a.creditLimit === 0 && a.creditUsed > 0
+          ? '<div class="quota-info"><span>配额: <span class="used">' + a.creditUsed + ' / 无限</span></span></div>'
+          : ''))
       + '</div>';
   }).join('');
+  applyFilter();
 
+
+  // Cooldown countdown: update every second
+  if (typeof _cdInterval === 'undefined') {
+    _cdInterval = setInterval(function() {
+      document.querySelectorAll('.cooldown-timer').forEach(function(el) {
+        var ts = parseInt(el.getAttribute('data-cooldown'));
+        if (!ts) return;
+        var rem = Math.max(0, Math.floor(ts - Date.now()/1000));
+        el.textContent = ' [' + rem + 's]';
+      });
+    }, 1000);
+  }
   // Proxy indicator
   if (gw.proxy_url) {
     $('proxyIndicator').style.display = 'inline-block';
@@ -1001,6 +1284,154 @@ $('importModal').addEventListener('click', function(e) {
 // ---- Init ----
 refresh();
 setInterval(refresh, 10000);
+
+// ========== Console Page Logic ==========
+let _cnslInterval = null;
+let _cnslAuto = true;
+let _cnslScale = 'day';
+
+function loadConsole() {
+  refreshConsoleStats();
+  refreshConsoleLogs();
+  if (_cnslInterval) clearInterval(_cnslInterval);
+  if (_cnslAuto) _cnslInterval = setInterval(refreshConsoleLogs, 3000);
+}
+
+function refreshConsoleStats() {
+  fetch('/admin/api/console/stats?scale=' + _cnslScale, { headers: headers() })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) return;
+      renderConsoleTotals(d.totals);
+      renderConsoleChart(d.series);
+    })
+    .catch(function(){});
+}
+
+function renderConsoleTotals(t) {
+  $('cnslTotals').innerHTML = [
+    { lbl: '总请求', val: t.requests },
+    { lbl: '成功', val: t.success, c: 'var(--green)' },
+    { lbl: '失败', val: t.failed, c: 'var(--red)' },
+    { lbl: '输入Tokens', val: (t.input_tokens || 0).toLocaleString() },
+    { lbl: '成功率', val: (t.success_rate || 0) + '%' },
+  ].map(function(s) {
+    return '<div class="cnsl-total-item"><div class="lbl">' + s.lbl + '</div><div class="val"' + (s.c ? ' style="color:' + s.c + '"' : '') + '>' + s.val + '</div></div>';
+  }).join('');
+}
+
+function renderConsoleChart(series) {
+  if (!series || series.length === 0) {
+    $('cnslBars').innerHTML = '<div style="width:100%;text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">暂无数据</div>';
+    $('cnslXLabels').innerHTML = '';
+    return;
+  }
+  var maxReq = 1;
+  for (var i = 0; i < series.length; i++) {
+    if (series[i].requests > maxReq) maxReq = series[i].requests;
+  }
+  var barsHtml = '';
+  for (var i = 0; i < series.length; i++) {
+    var s = series[i];
+    var pct = Math.round(s.requests / maxReq * 100);
+    if (pct < 1 && s.requests > 0) pct = 3; // minimum visible bar
+    var color = s.failed > s.success ? 'var(--red)' : 'var(--blue)';
+    barsHtml += '<div class="cnsl-bar" style="height:' + pct + '%;background:' + color + ';" title="' + s.time + ': ' + s.requests + ' reqs">'
+      + '<div class="tip">' + s.time + '<br>请求: ' + s.requests + '<br>成功: ' + s.success + '<br>失败: ' + s.failed + '<br>Tokens: ' + (s.input_tokens||0).toLocaleString() + '</div></div>';
+  }
+  $('cnslBars').innerHTML = barsHtml;
+  $('cnslXLabels').innerHTML = series.map(function(s) { return '<span>' + s.time + '</span>'; }).join('');
+}
+
+function refreshConsoleLogs() {
+  fetch('/admin/api/console/logs?limit=50', { headers: headers() })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) return;
+      renderConsoleLogs(d.data);
+    })
+    .catch(function(){});
+}
+
+var _cnslLogsExpanded = {};
+
+function renderConsoleLogs(logs) {
+  var body = $('cnslLogBody');
+  if (!logs || logs.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">暂无日志</td></tr>';
+    $('cnslLogCount').textContent = '0';
+    return;
+  }
+  $('cnslLogCount').textContent = logs.length + ' 条';
+
+  var newExpanded = {};
+  var html = '';
+  for (var i = 0; i < logs.length; i++) {
+    var l = logs[i];
+    var key = l.timestamp + '-' + l.account_id + '-' + i;
+    var exp = _cnslLogsExpanded[key] || false;
+    newExpanded[key] = exp;
+    var statusClass = l.status === 'success' ? 'cnsl-status-ok' : (l.status === 'fail' ? 'cnsl-status-fail' : 'cnsl-status-proc');
+    var statusText = l.status === 'success' ? 'OK' : (l.status === 'fail' ? 'FAIL' : l.status);
+    var duration = l.duration ? (l.duration > 0 ? l.duration + 's' : '-') : '-';
+    var detailRows = exp ? ' expanded' : '';
+    var arrow = exp ? '&#9650;' : '&#9660;';
+    html += '<tr class="' + detailRows + '" onclick="toggleConsoleLogRow(this,' + key + ')">'
+      + '<td style="white-space:nowrap;">' + (l.time || '-') + '</td>'
+      + '<td>' + (l.model || '-') + '</td>'
+      + '<td><span class="' + statusClass + '">' + statusText + '</span></td>'
+      + '<td class="cnsl-col-url" title="' + (l.url || '') + '">' + (l.method || '') + ' ' + (l.url || '-') + '</td>'
+      + '<td>' + duration + '</td>'
+      + '<td style="cursor:pointer;">' + arrow + '</td>'
+      + '</tr>'
+      + '<tr class="' + detailRows + '" style="background:rgba(0,0,0,.1);">'
+      + '<td colspan="6"><div class="log-detail">'
+      + '<b>账号:</b> ' + (l.account_id || '-') + '<br>'
+      + '<b>客户端IP:</b> ' + (l.client_ip || '-') + '<br>'
+      + '<b>输入 Tokens:</b> ' + (l.input_tokens || '0') + ' | <b>输出 Tokens:</b> ' + (l.output_tokens || '0') + '<br>'
+      + (l.request_body ? '<b>请求体:</b><div class="log-body">' + escHtml(l.request_body) + '</div>' : '')
+      + '</div></td></tr>';
+  }
+  body.innerHTML = html;
+  _cnslLogsExpanded = newExpanded;
+}
+
+function toggleConsoleLogRow(tr, key) {
+  _cnslLogsExpanded[key] = !_cnslLogsExpanded[key];
+  tr.classList.toggle('expanded');
+  var next = tr.nextElementSibling;
+  if (next) next.classList.toggle('expanded');
+  var arrow = tr.querySelector('td:last-child');
+  if (arrow) arrow.innerHTML = _cnslLogsExpanded[key] ? '&#9650;' : '&#9660;';
+}
+
+function switchConsoleScale(scale, btn) {
+  _cnslScale = scale;
+  var btns = document.querySelectorAll('.cnsl-scale .sbtn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  btn.classList.add('active');
+  refreshConsoleStats();
+}
+
+function toggleConsoleAuto() {
+  _cnslAuto = !_cnslAuto;
+  var btn = $('cnslAutoBtn');
+  btn.classList.toggle('active');
+  btn.innerHTML = _cnslAuto ? '&#9654; 自动' : '&#9646;&#9646; 暂停';
+  if (_cnslAuto) {
+    loadConsole();
+  } else {
+    if (_cnslInterval) { clearInterval(_cnslInterval); _cnslInterval = null; }
+  }
+}
+
+function clearConsoleLogs() {
+  var body = $('cnslLogBody');
+  if (body) body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--muted);">已清空</td></tr>';
+  $('cnslLogCount').textContent = '0';
+  var bars = $('cnslBars');
+  if (bars) bars.innerHTML = '<div style="width:100%;text-align:center;padding:40px 0;color:var(--muted);font-size:13px;">已清空</div>';
+}
 
 // ========== Playground Logic ==========
 const PG_STORAGE_KEY = 'kiro_playground';
@@ -1482,6 +1913,9 @@ switchPage = function(name) {
   if (name === 'playground') {
     initPlayground();
   }
+  if (name === 'console') {
+    loadConsole();
+  }
 };
 
 // Auto-resize textarea
@@ -1495,6 +1929,8 @@ switchPage = function(name) {
   }
 })();
 
+// Auto-init on page load
+switchPage('accounts');
 </script>
 </body>
 </html>

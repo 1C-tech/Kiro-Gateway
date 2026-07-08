@@ -18,6 +18,7 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
+from kiro.stats_collector import StatsCollector
 FastAPI routes for Kiro Gateway.
 
 Contains all API endpoints:
@@ -370,7 +371,33 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                     messages_for_tokenizer = [msg.model_dump() for msg in request_data.messages]
                     tools_for_tokenizer = [tool.model_dump() for tool in request_data.tools] if request_data.tools else None
                     
+                    # Estimate input tokens for console stats
+                    try:
+                        req_tok_stats = estimate_request_tokens(
+                            messages=messages_for_tokenizer,
+                            tools=tools_for_tokenizer,
+                        )
+                        input_tokens_est = req_tok_stats["total_tokens"]
+                    except Exception:
+                        input_tokens_est = 0
+                    
                     if request_data.stream:
+                        # Record to console stats (streaming)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="success",
+                                status_code=200,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
+                        
                         # Streaming mode
                         async def stream_wrapper():
                             streaming_error = None
@@ -432,6 +459,24 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                             request_tools=tools_for_tokenizer
                         )
                         
+                        # Record to console stats (non-streaming)
+                        try:
+                            usage = openai_response.get("usage", {}) if isinstance(openai_response, dict) else {}
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="success",
+                                status_code=200,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=usage.get("prompt_tokens", input_tokens_est),
+                                output_tokens=usage.get("completion_tokens", 0),
+                            )
+                        except Exception:
+                            pass
+                        
                         await http_client.close()
                         logger.info(f"HTTP 200 - POST /v1/chat/completions (non-streaming) - completed")
                         
@@ -455,6 +500,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                     try:
                         error_json = json.loads(error_text)
                         from kiro.kiro_errors import enhance_kiro_error
+
                         error_info = enhance_kiro_error(error_json)
                         error_reason = error_info.reason
                         last_error_message = error_info.user_message
@@ -473,6 +519,22 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                             account.id, request_data.model, error_type,
                             response.status_code, error_reason
                         )
+                        
+                        # Record to console stats (FATAL)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="fail",
+                                status_code=response.status_code,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
                         
                         logger.warning(f"HTTP {response.status_code} - POST /v1/chat/completions - {last_error_message[:100]}")
                         
@@ -496,6 +558,22 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                             account.id, request_data.model, error_type,
                             response.status_code, error_reason
                         )
+                        
+                        # Record to console stats (RECOVERABLE)
+                        try:
+                            StatsCollector().record_request(
+                                account_id=account.id,
+                                model=request_data.model,
+                                status="fail",
+                                status_code=response.status_code,
+                                client_ip=request.client.host if request.client else "",
+                                method=request.method,
+                                url=str(request.url.path),
+                                request_body=request_data.model_dump_json(exclude_none=True)[:800],
+                                input_tokens=input_tokens_est,
+                            )
+                        except Exception:
+                            pass
                         
                         # Single account - no point in failover, break immediately
                         if len(all_accounts) == 1:
@@ -631,6 +709,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                 error_json = json.loads(error_text)
                 # Enhance Kiro API errors with user-friendly messages
                 from kiro.kiro_errors import enhance_kiro_error
+
                 error_info = enhance_kiro_error(error_json)
                 error_message = error_info.user_message
                 # Log original error for debugging

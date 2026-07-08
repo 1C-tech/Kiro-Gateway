@@ -11,6 +11,8 @@ from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+import httpx
+from kiro.stats_collector import StatsCollector
 
 # Admin key: env var default, overridable via settings file at runtime
 _ADMIN_API_KEY_DEFAULT = os.getenv("ADMIN_API_KEY", "kiro-admin-2026")
@@ -84,9 +86,6 @@ def _next_account_number() -> int:
 async def get_dashboard(request: Request):
     am = request.app.state.account_manager
     accounts = am._accounts
-    state_data = getattr(am, '_state_data', {})
-    accounts_state = state_data.get("accounts", {})
-
     total = len(accounts)
     healthy = 0
     degraded = 0
@@ -107,11 +106,13 @@ async def get_dashboard(request: Request):
             pass
 
     for aid, acct in accounts.items():
-        st = accounts_state.get(aid, {})
-        acct_stats = st.get("stats", {})
-        failures = st.get("failures", 0)
-        last_fail = st.get("last_failure_time", 0)
-        cooldown_until = st.get("cooldown_until", 0)
+        failures = acct.failures
+        last_fail = acct.last_failure_time
+        if acct.failures > 0 and acct.last_failure_time > 0:
+            backoff = min(2 ** (acct.failures - 1), 1440.0)
+            cooldown_until = acct.last_failure_time + 60.0 * backoff
+        else:
+            cooldown_until = 0
 
         # Read real data from JSON file
         file_data = file_data_map.get(aid, {})
@@ -122,9 +123,9 @@ async def get_dashboard(request: Request):
         elif acct.model_resolver:
             models = acct.model_resolver.get_available_models() if hasattr(acct.model_resolver, 'get_available_models') else []
 
-        t = acct_stats.get("total_requests", 0)
-        s = acct_stats.get("successful_requests", 0)
-        f = acct_stats.get("failed_requests", 0)
+        t = acct.stats.total_requests
+        s = acct.stats.successful_requests
+        f = acct.stats.failed_requests
         total_req += t
         success_req += s
         failed_req += f
@@ -172,7 +173,7 @@ async def get_dashboard(request: Request):
             "cooldown_until": cooldown_until,
             "last_failure_time": last_fail,
             "stats": {"total": t, "success": s, "failed": f},
-            "models": len(models),
+            "models": models,
         })
 
         # Track real healthy count from runtime
@@ -214,6 +215,7 @@ async def get_dashboard(request: Request):
             "accounts_failed": failed,
             "accounts_healthy_real": healthy_real,
             "proxy_url": proxy_url,
+            "current_account_index": am._current_account_index,
         },
         "requests": {
             "total": total_req,
@@ -555,6 +557,327 @@ async def batch_export_accounts(req: BatchAccountIds, request: Request):
 
     return {"accounts": accounts, "total": len(accounts)}
 
+
+@router.post("/admin/api/accounts/refresh-credits", dependencies=[Depends(verify_admin_key)])
+async def refresh_accounts_credits(request: Request):
+    """Refresh credit usage data for all accounts from the remote Kiro API.
+    
+    For accounts with an active auth_manager, uses the existing token refresh.
+    For uninitialized accounts, reads the JSON file and performs OIDC refresh directly.
+    """
+    from urllib.parse import quote
+
+    am = request.app.state.account_manager
+    results = []
+    total_ok = 0
+    total_fail = 0
+
+    # Collect all account file paths
+    account_files = []
+    for aid, acct in am._accounts.items():
+        account_files.append((aid, acct))
+    # Also scan the directory for any files not in _accounts
+    known_paths = {aid for aid, _ in account_files}
+    for f in glob.glob(os.path.join(ACCOUNTS_DIR, "*.json")):
+        resolved = str(Path(f).resolve())
+        if resolved not in known_paths:
+            from kiro.account_manager import Account
+            account_files.append((resolved, Account(id=resolved)))
+
+    for aid, acct in account_files:
+        acct_id = os.path.basename(aid).replace(".json", "")
+        result = {"id": acct_id, "success": False, "error": None, "creditLimit": None, "creditUsed": None}
+
+        try:
+            # Determine if we have an auth_manager
+            auth_mgr = getattr(acct, 'auth_manager', None)
+
+            if auth_mgr:
+                # Fast path: use existing auth manager
+                token = await auth_mgr.get_access_token()
+                q_host = getattr(auth_mgr, 'q_host', 'https://q.us-east-1.amazonaws.com')
+                profile_arn = getattr(auth_mgr, 'profile_arn', None) or ""
+                region = getattr(auth_mgr, '_region', 'us-east-1')
+            else:
+                # Slow path: read file, do OIDC refresh ourselves
+                filepath = aid
+                if not os.path.exists(filepath):
+                    result["error"] = "File not found"
+                    total_fail += 1
+                    results.append(result)
+                    continue
+
+                with open(filepath) as f:
+                    creds = json.load(f)
+
+                client_id = creds.get("clientId", "")
+                client_secret = creds.get("clientSecret", "")
+                refresh_token = creds.get("refreshToken", "")
+                region = creds.get("region", "us-east-1")
+
+                if not client_id or not client_secret or not refresh_token:
+                    result["error"] = "Missing OIDC credentials in file"
+                    total_fail += 1
+                    results.append(result)
+                    continue
+
+                # AWS SSO OIDC refresh
+                oidc_url = f"https://oidc.{region}.amazonaws.com/token"
+                q_host = f"https://q.{region}.amazonaws.com"
+
+                payload = {
+                    "grantType": "refresh_token",
+                    "clientId": client_id,
+                    "clientSecret": client_secret,
+                    "refreshToken": refresh_token,
+                }
+
+                async with httpx.AsyncClient(timeout=30) as client:
+                    resp = await client.post(
+                        oidc_url,
+                        json=payload,
+                        headers={"Content-Type": "application/json"}
+                    )
+
+                    if resp.status_code != 200:
+                        result["error"] = f"OIDC refresh HTTP {resp.status_code}"
+                        total_fail += 1
+                        results.append(result)
+                        continue
+
+                    oidc_data = resp.json()
+                    token = oidc_data.get("accessToken", "")
+                    if not token:
+                        result["error"] = "No accessToken in OIDC response"
+                        total_fail += 1
+                        results.append(result)
+                        continue
+
+                    # Update the file with new token
+                    creds["accessToken"] = token
+                    creds["expiresAt"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + oidc_data.get("expiresIn", 3600)))
+                    with open(filepath, "w") as f:
+                        json.dump(creds, f, indent=2)
+
+                profile_arn = creds.get("profileArn", "") or ""
+
+            # Build the getUsageLimits URL
+            params = "origin=AI_EDITOR&resourceType=AGENTIC_REQUEST&isEmailRequired=true"
+            if profile_arn:
+                params += f"&profileArn={quote(profile_arn)}"
+
+            url = f"{q_host}/getUsageLimits?{params}"
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.get(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/json",
+                        "User-Agent": "KiroGateway/2.4",
+                    }
+                )
+
+            if resp.status_code != 200:
+                result["error"] = f"Usage API returned HTTP {resp.status_code}"
+                total_fail += 1
+                results.append(result)
+                continue
+
+            data = resp.json()
+
+            # Parse usage breakdown
+            credit_limit = 0
+            credit_used = 0
+            breakdown = data.get("usageBreakdownList", [])
+            for item in breakdown:
+                if item.get("resourceType") == "CREDIT":
+                    credit_limit = item.get("usageLimitWithPrecision") or item.get("usageLimit", 0)
+                    credit_used = item.get("currentUsageWithPrecision") or item.get("currentUsage", 0)
+                    break
+
+            # Update JSON file on disk
+            filepath = aid
+            if os.path.exists(filepath):
+                with open(filepath) as f:
+                    file_data = json.load(f)
+                file_data["creditLimit"] = credit_limit
+                file_data["creditUsed"] = credit_used
+                file_data["time"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                with open(filepath, "w") as f:
+                    json.dump(file_data, f, indent=2)
+
+            result["success"] = True
+            result["creditLimit"] = credit_limit
+            result["creditUsed"] = credit_used
+            total_ok += 1
+
+        except Exception as e:
+            result["error"] = str(e)
+            total_fail += 1
+
+        results.append(result)
+
+    return {
+        "success": True,
+        "total": len(results),
+        "ok": total_ok,
+        "fail": total_fail,
+        "results": results,
+    }
+
+
+@router.post("/admin/api/accounts/check-aliveness", dependencies=[Depends(verify_admin_key)])
+async def check_accounts_aliveness(request: Request):
+    """Full aliveness check for all accounts: token refresh + API call."""
+    results = []
+    total_ok = 0
+    total_fail = 0
+
+    for filepath in sorted(glob.glob(os.path.join(ACCOUNTS_DIR, "*.json"))):
+        acct_id = os.path.basename(filepath).replace(".json", "")
+        result = {
+            "id": acct_id, "alive": False,
+            "token_ok": False, "api_ok": False,
+            "token_error": None, "api_error": None,
+            "creditLimit": None, "creditUsed": None,
+        }
+
+        try:
+            # Step 1: Read file
+            with open(filepath) as f:
+                creds = json.load(f)
+
+            client_id = creds.get("clientId", "")
+            client_secret = creds.get("clientSecret", "")
+            refresh_token = creds.get("refreshToken", "")
+            region = creds.get("region", "us-east-1")
+
+            if not client_id or not client_secret or not refresh_token:
+                result["token_error"] = "Missing OIDC credentials"
+                total_fail += 1
+                results.append(result)
+                continue
+
+            # Step 2: OIDC token refresh
+            oidc_url = f"https://oidc.{region}.amazonaws.com/token"
+            q_host = f"https://q.{region}.amazonaws.com"
+
+            payload = {
+                "grantType": "refresh_token",
+                "clientId": client_id,
+                "clientSecret": client_secret,
+                "refreshToken": refresh_token,
+            }
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    oidc_url, json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+
+            if resp.status_code != 200:
+                result["token_error"] = f"OIDC refresh HTTP {resp.status_code}"
+                total_fail += 1
+                results.append(result)
+                continue
+
+            oidc_data = resp.json()
+            token = oidc_data.get("accessToken", "")
+            if not token:
+                result["token_error"] = "No accessToken in response"
+                total_fail += 1
+                results.append(result)
+                continue
+
+            result["token_ok"] = True
+
+            # Step 3: Call getUsageLimits API
+            usage_params = "origin=AI_EDITOR&resourceType=AGENTIC_REQUEST&isEmailRequired=true"
+            profile_arn = creds.get("profileArn", "") or ""
+            if profile_arn:
+                from urllib.parse import quote
+                usage_params += f"&profileArn={quote(profile_arn)}"
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp2 = await client.get(
+                    f"{q_host}/getUsageLimits?{usage_params}",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/json",
+                        "User-Agent": "KiroGateway/2.4",
+                    }
+                )
+
+            if resp2.status_code == 200:
+                result["api_ok"] = True
+                data = resp2.json()
+                breakdown = data.get("usageBreakdownList", [])
+                for item in breakdown:
+                    if item.get("resourceType") == "CREDIT":
+                        result["creditLimit"] = item.get("usageLimitWithPrecision") or item.get("usageLimit", 0)
+                        result["creditUsed"] = item.get("currentUsageWithPrecision") or item.get("currentUsage", 0)
+                        break
+            else:
+                result["api_error"] = f"Usage API HTTP {resp2.status_code}"
+
+            # Overall: alive if both token and API work
+            result["alive"] = result["token_ok"] and result["api_ok"]
+            if result["alive"]:
+                total_ok += 1
+            else:
+                total_fail += 1
+
+        except Exception as e:
+            result["alive"] = False
+            if not result["token_error"]:
+                result["token_error"] = str(e)
+            total_fail += 1
+
+        results.append(result)
+
+    # Update state.json with aliveness results
+    state_path = getattr(request.app.state, '_state_data', None)
+    if state_path is not None:
+        try:
+            state_data = state_path
+            state_data["aliveness_check"] = {
+                "time": time.time(),
+                "total": len(results),
+                "alive": total_ok,
+                "dead": total_fail,
+                "accounts": {r["id"]: {
+                    "alive": r["alive"],
+                    "token_ok": r["token_ok"],
+                    "api_ok": r["api_ok"],
+                } for r in results}
+            }
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "total": len(results),
+        "alive": total_ok,
+        "dead": total_fail,
+        "results": results,
+    }
+
+
+@router.get("/admin/api/console/logs", dependencies=[Depends(verify_admin_key)])
+async def get_console_logs(request: Request, limit: int = 100):
+    """Return recent request logs for the admin console."""
+    logs = StatsCollector().get_logs(limit=limit)
+    return {"success": True, "data": logs}
+
+
+@router.get("/admin/api/console/stats", dependencies=[Depends(verify_admin_key)])
+async def get_console_stats(request: Request, scale: str = "day"):
+    """Return aggregated stats for the admin console chart."""
+    if scale not in ("day", "week", "month"):
+        scale = "day"
+    stats = StatsCollector().get_stats(scale=scale)
+    return {"success": True, **stats}
 
 @router.get("/admin", include_in_schema=False)
 @router.get("/admin/", include_in_schema=False)
