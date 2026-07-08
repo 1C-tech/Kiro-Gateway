@@ -1385,7 +1385,7 @@ function renderConsoleLogs(logs) {
   var html = '';
   for (var i = 0; i < logs.length; i++) {
     var l = logs[i];
-    var key = l.timestamp + '-' + l.account_id + '-' + i;
+    var key = l.timestamp;
     var exp = _cnslLogsExpanded[key] || false;
     newExpanded[key] = exp;
     var statusClass = l.status === 'success' ? 'cnsl-status-ok' : (l.status === 'fail' ? 'cnsl-status-fail' : 'cnsl-status-proc');
