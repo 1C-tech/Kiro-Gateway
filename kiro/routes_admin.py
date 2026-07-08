@@ -727,6 +727,136 @@ async def refresh_accounts_credits(request: Request):
     }
 
 
+@router.post("/admin/api/accounts/refresh-credits-single", dependencies=[Depends(verify_admin_key)])
+async def refresh_account_credit_single(req: Request):
+    """Refresh credit usage for a single account.
+    
+    Request body: {"account_id": "acct-xxx"}
+    Uses the same logic as the batch version but for one account.
+    """
+    from urllib.parse import quote
+    import time
+
+    body = await req.json()
+    acct_id = body.get("account_id", "")
+    if not acct_id:
+        return {"success": False, "error": "Missing account_id"}
+
+    am = req.app.state.account_manager
+    filepath = os.path.join(ACCOUNTS_DIR, acct_id + ".json")
+
+    result = {"id": acct_id, "success": False, "error": None, "creditLimit": None, "creditUsed": None}
+
+    try:
+        acct = am._accounts.get(filepath) or am._accounts.get(acct_id)
+        auth_mgr = getattr(acct, 'auth_manager', None) if acct else None
+
+        if auth_mgr:
+            token = await auth_mgr.get_access_token()
+            q_host = getattr(auth_mgr, 'q_host', 'https://q.us-east-1.amazonaws.com')
+            profile_arn = getattr(auth_mgr, 'profile_arn', None) or ""
+            region = getattr(auth_mgr, '_region', 'us-east-1')
+        else:
+            if not os.path.exists(filepath):
+                result["error"] = "File not found"
+                return result
+
+            with open(filepath) as f:
+                creds = json.load(f)
+
+            client_id = creds.get("clientId", "")
+            client_secret = creds.get("clientSecret", "")
+            refresh_token = creds.get("refreshToken", "")
+            region = creds.get("region", "us-east-1")
+
+            if not client_id or not client_secret or not refresh_token:
+                result["error"] = "Missing OIDC credentials in file"
+                return result
+
+            oidc_url = f"https://oidc.{region}.amazonaws.com/token"
+            q_host = f"https://q.{region}.amazonaws.com"
+
+            payload = {
+                "grantType": "refresh_token",
+                "clientId": client_id,
+                "clientSecret": client_secret,
+                "refreshToken": refresh_token,
+            }
+
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(
+                    oidc_url, json=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+
+            if resp.status_code != 200:
+                result["error"] = f"OIDC refresh HTTP {resp.status_code}"
+                return result
+
+            oidc_data = resp.json()
+            token = oidc_data.get("accessToken", "")
+            if not token:
+                result["error"] = "No accessToken in OIDC response"
+                return result
+
+            creds["accessToken"] = token
+            creds["expiresAt"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(time.time() + oidc_data.get("expiresIn", 3600)))
+            with open(filepath, "w") as f:
+                json.dump(creds, f, indent=2)
+
+            profile_arn = creds.get("profileArn", "") or ""
+
+        # Call getUsageLimits API
+        params = "origin=AI_EDITOR&resourceType=AGENTIC_REQUEST&isEmailRequired=true"
+        if profile_arn:
+            params += f"&profileArn={quote(profile_arn)}"
+
+        url = f"{q_host}/getUsageLimits?{params}"
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                url,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/json",
+                    "User-Agent": "KiroGateway/2.4",
+                }
+            )
+
+        if resp.status_code != 200:
+            result["error"] = f"Usage API returned HTTP {resp.status_code}"
+            return result
+
+        data = resp.json()
+
+        credit_limit = 0
+        credit_used = 0
+        breakdown = data.get("usageBreakdownList", [])
+        for item in breakdown:
+            if item.get("resourceType") == "CREDIT":
+                credit_limit = item.get("usageLimitWithPrecision") or item.get("usageLimit", 0)
+                credit_used = item.get("currentUsageWithPrecision") or item.get("currentUsage", 0)
+                break
+
+        # Update file on disk
+        if os.path.exists(filepath):
+            with open(filepath) as f:
+                file_data = json.load(f)
+            file_data["creditLimit"] = credit_limit
+            file_data["creditUsed"] = credit_used
+            file_data["time"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(filepath, "w") as f:
+                json.dump(file_data, f, indent=2)
+
+        result["success"] = True
+        result["creditLimit"] = credit_limit
+        result["creditUsed"] = credit_used
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
 @router.post("/admin/api/accounts/check-aliveness", dependencies=[Depends(verify_admin_key)])
 async def check_accounts_aliveness(request: Request):
     """Full aliveness check for all accounts: token refresh + API call."""

@@ -267,10 +267,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <button class="hamburger-desktop" onclick="toggleSidebar()">&#9776;</button>
     <span class="badge" id="statusBadge">checking...</span>
     <div class="controls-right" id="controlsRight">
-      <button class="btn btn-green" onclick="showAddModal()">+ 添加账号</button>
+      
       <button class="btn btn-yellow" onclick="triggerJsonImport()">导入JSON</button>
       <input type="file" id="jsonFileInput" accept=".json" style="display:none" onchange="handleJsonFile(event)">
-      <button class="btn btn-ghost" onclick="refresh()">刷新</button>
       <button class="btn btn-ghost" id="refreshCreditsBtn" onclick="refreshCredits()">刷新额度</button>
       <button class="btn btn-ghost" id="checkAlivenessBtn" onclick="checkAliveness()">测活</button>
     </div>
@@ -760,23 +759,66 @@ function refreshCredits() {
   const btn = $('refreshCreditsBtn');
   btn.disabled = true;
   btn.textContent = '额度刷新中...';
-  fetch('/admin/api/accounts/refresh-credits', { method: 'POST', headers: headers() })
+
+  // First fetch list of accounts
+  fetch('/admin/api/dashboard', { headers: headers() })
     .then(r => r.json())
-    .then(data => {
-      if (data.success) {
-        toast('额度刷新完成: ' + data.ok + '/' + data.total + ' 成功, ' + data.fail + ' 失败');
-        refresh(); // also refresh the dashboard
-      } else {
-        toast('额度刷新失败');
+    .then(dash => {
+      const accounts = dash.accounts || [];
+      const total = accounts.length;
+      if (total === 0) {
+        toast('没有账号需要刷新');
+        btn.disabled = false;
+        btn.textContent = '刷新额度';
+        return;
       }
+
+      let done = 0, ok = 0, fail = 0;
+      btn.textContent = '0/' + total + ' 刷新额度';
+
+      // Process accounts concurrently (5 at a time)
+      const concurrency = 5;
+      let idx = 0;
+
+      function processBatch() {
+        const batch = [];
+        while (batch.length < concurrency && idx < total) {
+          const i = idx++;
+          const acct = accounts[i];
+          batch.push(
+            fetch('/admin/api/accounts/refresh-credits-single', {
+              method: 'POST',
+              headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ account_id: acct.id })
+            })
+            .then(r => r.json())
+            .then(data => {
+              done++;
+              if (data.success) ok++; else fail++;
+              btn.textContent = done + '/' + total + ' 刷新额度';
+            })
+            .catch(() => { done++; fail++; btn.textContent = done + '/' + total + ' 刷新额度'; })
+          );
+        }
+        return Promise.all(batch).then(() => {
+          if (idx < total) return processBatch();
+        });
+      }
+
+      processBatch().then(() => {
+        toast('额度刷新完成: ' + ok + '/' + total + ' 成功, ' + fail + ' 失败');
+        refresh();
+      });
     })
     .catch(e => {
-      toast('额度刷新请求失败: ' + e.message);
+      toast('获取账号列表失败: ' + e.message);
     })
     .finally(() => {
       btn.disabled = false;
       btn.textContent = '刷新额度';
     });
+}
+
 }
 
 function checkAliveness() {
@@ -1140,54 +1182,71 @@ function startJsonImport() {
   const total = accounts.length;
   let successCount = 0, failCount = 0;
   const details = [];
+  let completed = 0;
+  const concurrency = 5;
 
-  function processNext(index) {
-    if (index >= total) {
-      $('importProgress').style.display = 'none';
-      $('importResult').style.display = 'block';
-      $('importSuccessCount').textContent = successCount;
-      $('importFailCount').textContent = failCount;
-      $('importCancelBtn').textContent = '关闭';
-      $('importCancelBtn').disabled = false;
-      $('importStartBtn').style.display = 'none';
-      $('importDetails').innerHTML = details.map(d => {
-        const icon = d.success ? '\u2705' : '\u274C';
-        return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid rgba(42,45,62,.3);display:flex;justify-content:space-between;">'
-          + '<span>' + icon + ' ' + (d.email || d.file || '#' + d.index) + '</span>'
-          + '<span style="color:' + (d.success ? 'var(--green)' : 'var(--red)') + ';">' + (d.success ? 'OK' : d.error) + '</span></div>';
-      }).join('');
-      setTimeout(refresh, 2000);
-      return;
+  function updateProgress() {
+    $('importStatusText').textContent = '正在导入 ' + completed + '/' + total + '...';
+    $('importProgressBar').style.width = Math.round((completed / total) * 100) + '%';
+  }
+
+  function finish() {
+    $('importProgress').style.display = 'none';
+    $('importResult').style.display = 'block';
+    $('importSuccessCount').textContent = successCount;
+    $('importFailCount').textContent = failCount;
+    $('importCancelBtn').textContent = '关闭';
+    $('importCancelBtn').disabled = false;
+    $('importStartBtn').style.display = 'none';
+    $('importDetails').innerHTML = details.map(d => {
+      const icon = d.success ? '\u2705' : '\u274C';
+      return '<div style="padding:3px 0;font-size:12px;border-bottom:1px solid rgba(42,45,62,.3);display:flex;justify-content:space-between;">'
+        + '<span>' + icon + ' ' + (d.email || d.file || '#' + d.index) + '</span>'
+        + '<span style="color:' + (d.success ? 'var(--green)' : 'var(--red)') + ';">' + (d.success ? 'OK' : d.error) + '</span></div>';
+    }).join('');
+    setTimeout(refresh, 2000);
+  }
+
+  let idx = 0;
+
+  function processBatch() {
+    const batch = [];
+    while (batch.length < concurrency && idx < total) {
+      const i = idx++;
+      const acct = accounts[i];
+      batch.push(
+        fetch('/admin/api/accounts/batch', {
+          method: 'POST',
+          headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ accounts: [acct] })
+        })
+        .then(r => r.json())
+        .then(data => {
+          completed++;
+          if (data.results && data.results[0]) {
+            const r = data.results[0];
+            r.success ? successCount++ : failCount++;
+            details.push({ index: i, email: acct.email || '', file: r.file, success: r.success, error: r.error || '' });
+          } else {
+            failCount++;
+            details.push({ index: i, email: acct.email || '', success: false, error: 'Unknown response' });
+          }
+          updateProgress();
+        })
+        .catch(() => {
+          completed++;
+          failCount++;
+          details.push({ index: i, email: acct.email || '', success: false, error: 'Network error' });
+          updateProgress();
+        })
+      );
     }
-
-    const acct = accounts[index];
-    $('importStatusText').textContent = '正在导入 ' + (index + 1) + '/' + total + '...';
-    $('importProgressBar').style.width = Math.round((index / total) * 100) + '%';
-
-    fetch('/admin/api/accounts/batch', {
-      method: 'POST',
-      headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ accounts: [acct] })
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.results && data.results[0]) {
-        const r = data.results[0];
-        r.success ? successCount++ : failCount++;
-        details.push({ index, email: acct.email || '', file: r.file, success: r.success, error: r.error || '' });
-      } else {
-        failCount++;
-        details.push({ index, email: acct.email || '', success: false, error: 'Unknown response' });
-      }
-      processNext(index + 1);
-    })
-    .catch(err => {
-      failCount++;
-      details.push({ index, email: acct.email || '', success: false, error: err.message });
-      processNext(index + 1);
+    return Promise.all(batch).then(() => {
+      if (idx < total) return processBatch();
     });
   }
-  processNext(0);
+
+  processBatch().then(finish);
 }
 
 // ---- Batch Selection ----
