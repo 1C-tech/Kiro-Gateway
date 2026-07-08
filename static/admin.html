@@ -755,70 +755,30 @@ function refresh() {
   });
 }
 
+
 function refreshCredits() {
   const btn = $('refreshCreditsBtn');
   btn.disabled = true;
-  btn.textContent = '额度刷新中...';
-
-  // First fetch list of accounts
-  fetch('/admin/api/dashboard', { headers: headers() })
+  btn.textContent = '刷新中...';
+  fetch('/admin/api/accounts/refresh-credits', { method: 'POST', headers: headers() })
     .then(r => r.json())
-    .then(dash => {
-      const accounts = dash.accounts || [];
-      const total = accounts.length;
-      if (total === 0) {
-        toast('没有账号需要刷新');
-        btn.disabled = false;
-        btn.textContent = '刷新额度';
-        return;
+    .then(data => {
+      var msg = '额度刷新完成';
+      if (data.total > 0) {
+        msg += ': ' + (data.ok || 0) + '/' + data.total + ' 成功';
+        if (data.fail) msg += ', ' + data.fail + ' 失败';
       }
-
-      let done = 0, ok = 0, fail = 0;
-      btn.textContent = '0/' + total + ' 刷新额度';
-
-      // Process accounts concurrently (5 at a time)
-      const concurrency = 5;
-      let idx = 0;
-
-      function processBatch() {
-        const batch = [];
-        while (batch.length < concurrency && idx < total) {
-          const i = idx++;
-          const acct = accounts[i];
-          batch.push(
-            fetch('/admin/api/accounts/refresh-credits-single', {
-              method: 'POST',
-              headers: Object.assign({}, headers(), { 'Content-Type': 'application/json' }),
-              body: JSON.stringify({ account_id: acct.id })
-            })
-            .then(r => r.json())
-            .then(data => {
-              done++;
-              if (data.success) ok++; else fail++;
-              btn.textContent = done + '/' + total + ' 刷新额度';
-            })
-            .catch(() => { done++; fail++; btn.textContent = done + '/' + total + ' 刷新额度'; })
-          );
-        }
-        return Promise.all(batch).then(() => {
-          if (idx < total) return processBatch();
-        });
-      }
-
-      processBatch().then(() => {
-        toast('额度刷新完成: ' + ok + '/' + total + ' 成功, ' + fail + ' 失败');
-        refresh();
-      });
+      toast(msg);
+      refresh();
     })
     .catch(e => {
-      toast('获取账号列表失败: ' + e.message);
+      toast('刷新额度失败: ' + e.message);
     })
     .finally(() => {
       btn.disabled = false;
       btn.textContent = '刷新额度';
     });
 }
-
 function checkAliveness() {
   const btn = $('checkAlivenessBtn');
   btn.disabled = true;
@@ -1433,7 +1393,7 @@ function renderConsoleLogs(logs) {
     var duration = l.duration ? (l.duration > 0 ? l.duration + 's' : '-') : '-';
     var detailRows = exp ? ' expanded' : '';
     var arrow = exp ? '&#9650;' : '&#9660;';
-    html += '<tr class="' + detailRows + '" onclick="toggleConsoleLogRow(this,' + key + ')">'
+    html += '<tr class="' + detailRows + '" onclick="toggleConsoleLogRow(this,\' + key + \')">'
       + '<td style="white-space:nowrap;">' + (l.time || '-') + '</td>'
       + '<td>' + (l.model || '-') + '</td>'
       + '<td><span class="' + statusClass + '">' + statusText + '</span></td>'
